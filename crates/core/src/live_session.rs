@@ -111,7 +111,7 @@ where
 /// The desktop uses this path so capture can visibly end as soon as its
 /// recoverable files are safe. It then hands a separate link to the durable
 /// processing queue. CLI callers retain the configured inline behavior above.
-#[cfg(any(feature = "whisper", test))]
+#[cfg(any(all(feature = "streaming", feature = "whisper"), test))]
 pub(crate) fn finalize_stopped_live_session_for_background_with_release<F>(
     config: &Config,
     wav_path: &Path,
