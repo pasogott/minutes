@@ -995,6 +995,59 @@ pub fn mark_capture_session_processing(
     Ok(())
 }
 
+/// Move a stopped Live Transcript session into durable background processing
+/// while retaining links to the archived real-time transcript and WAV.
+pub fn mark_live_transcript_processing(
+    session_id: &str,
+    job_id: &str,
+    job_audio_path: &Path,
+    jsonl_path: &Path,
+    archived_wav_path: &Path,
+    ended_at: Option<DateTime<Local>>,
+) -> Result<(), ContextStoreError> {
+    let mut conn = open_db()?;
+    let transaction = conn.transaction()?;
+    update_session_state_with_conn(
+        &transaction,
+        session_id,
+        ContextSessionState::Processing,
+        ended_at,
+        None,
+        Some(ContentType::Meeting),
+        json!({ "job_id": job_id, "background_processing": true }),
+    )?;
+    upsert_link_with_conn(
+        &transaction,
+        session_id,
+        ContextLinkKind::Job,
+        job_id,
+        json!({}),
+    )?;
+    upsert_link_with_conn(
+        &transaction,
+        session_id,
+        ContextLinkKind::AudioCapture,
+        &job_audio_path.display().to_string(),
+        json!({}),
+    )?;
+    upsert_link_with_conn(
+        &transaction,
+        session_id,
+        ContextLinkKind::LiveTranscriptJsonl,
+        &jsonl_path.display().to_string(),
+        json!({}),
+    )?;
+    upsert_link_with_conn(
+        &transaction,
+        session_id,
+        ContextLinkKind::LiveTranscriptWav,
+        &archived_wav_path.display().to_string(),
+        json!({}),
+    )?;
+    transaction.commit()?;
+    Ok(())
+}
+
 pub fn mark_capture_session_complete(
     session_id: &str,
     output_path: &Path,
@@ -1787,6 +1840,46 @@ mod tests {
             )
             .unwrap();
             assert_eq!(window_events.len(), 2);
+        });
+    }
+
+    #[test]
+    fn live_transcript_processing_retains_archived_pair_links() {
+        with_temp_home(|home| {
+            let started_at = Local::now();
+            let session = start_live_transcript_session(started_at).unwrap();
+            let job_audio = home.path().join(".minutes/jobs/job-live.wav");
+            let archived_wav = home
+                .path()
+                .join(".minutes/live-sessions/live-transcript-20260901.wav");
+            let archived_jsonl = archived_wav.with_extension("jsonl");
+
+            mark_live_transcript_processing(
+                &session.id,
+                "job-live",
+                &job_audio,
+                &archived_jsonl,
+                &archived_wav,
+                Some(started_at + Duration::seconds(30)),
+            )
+            .unwrap();
+
+            let reloaded = get_session(&session.id).unwrap().unwrap();
+            assert_eq!(reloaded.state, ContextSessionState::Processing);
+            assert_eq!(reloaded.capture_mode, Some(CaptureMode::LiveTranscript));
+            assert_eq!(reloaded.content_type, Some(ContentType::Meeting));
+            let links = list_links_for_session(&session.id).unwrap();
+            assert!(links
+                .iter()
+                .any(|link| { link.kind == ContextLinkKind::Job && link.target == "job-live" }));
+            assert!(links.iter().any(|link| {
+                link.kind == ContextLinkKind::LiveTranscriptJsonl
+                    && link.target == archived_jsonl.display().to_string()
+            }));
+            assert!(links.iter().any(|link| {
+                link.kind == ContextLinkKind::LiveTranscriptWav
+                    && link.target == archived_wav.display().to_string()
+            }));
         });
     }
 

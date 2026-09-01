@@ -2568,14 +2568,33 @@ fn processing_job_title_fallback(mode: CaptureMode) -> &'static str {
         CaptureMode::Meeting => "Meeting recording",
         CaptureMode::QuickThought => "Quick thought",
         CaptureMode::Dictation => "Dictation",
-        CaptureMode::LiveTranscript => "Live transcript",
+        CaptureMode::LiveTranscript => "Live meeting",
     }
 }
 
 fn processing_job_view(job: minutes_core::jobs::ProcessingJob) -> ProcessingJobView {
     let mode = job.mode;
     let fallback_title = processing_job_title_fallback(mode);
-    let stage_label = pipeline_stage_label(job.stage.as_deref(), Some(mode)).map(String::from);
+    let stage_label = match job.state {
+        minutes_core::jobs::JobState::Transcribing => Some(stage_label(
+            minutes_core::pipeline::PipelineStage::Transcribing,
+            mode,
+        )),
+        minutes_core::jobs::JobState::Diarizing => Some(stage_label(
+            minutes_core::pipeline::PipelineStage::Diarizing,
+            mode,
+        )),
+        minutes_core::jobs::JobState::Summarizing => Some(stage_label(
+            minutes_core::pipeline::PipelineStage::Summarizing,
+            mode,
+        )),
+        minutes_core::jobs::JobState::Saving => Some(stage_label(
+            minutes_core::pipeline::PipelineStage::Saving,
+            mode,
+        )),
+        _ => None,
+    }
+    .map(String::from);
     ProcessingJobView {
         id: job.id,
         title: job.title.unwrap_or_else(|| fallback_title.into()),
@@ -4284,20 +4303,25 @@ fn arm_desktop_call_capture_route(
 
 fn stage_label(stage: minutes_core::pipeline::PipelineStage, mode: CaptureMode) -> &'static str {
     match (stage, mode) {
-        (minutes_core::pipeline::PipelineStage::Transcribing, CaptureMode::Meeting) => {
-            "Transcribing meeting"
-        }
+        (
+            minutes_core::pipeline::PipelineStage::Transcribing,
+            CaptureMode::Meeting | CaptureMode::LiveTranscript,
+        ) => "Transcribing meeting",
         (minutes_core::pipeline::PipelineStage::Transcribing, CaptureMode::QuickThought) => {
             "Transcribing quick thought"
         }
         (minutes_core::pipeline::PipelineStage::Diarizing, _) => "Separating speakers",
-        (minutes_core::pipeline::PipelineStage::Summarizing, CaptureMode::Meeting) => {
-            "Generating meeting summary"
-        }
+        (
+            minutes_core::pipeline::PipelineStage::Summarizing,
+            CaptureMode::Meeting | CaptureMode::LiveTranscript,
+        ) => "Generating meeting summary",
         (minutes_core::pipeline::PipelineStage::Summarizing, CaptureMode::QuickThought) => {
             "Generating memo summary"
         }
-        (minutes_core::pipeline::PipelineStage::Saving, CaptureMode::Meeting) => "Saving meeting",
+        (
+            minutes_core::pipeline::PipelineStage::Saving,
+            CaptureMode::Meeting | CaptureMode::LiveTranscript,
+        ) => "Saving meeting",
         (minutes_core::pipeline::PipelineStage::Saving, CaptureMode::QuickThought) => {
             "Saving quick thought"
         }
@@ -4310,7 +4334,6 @@ fn stage_label(stage: minutes_core::pipeline::PipelineStage, mode: CaptureMode) 
         (minutes_core::pipeline::PipelineStage::Saving, CaptureMode::Dictation) => {
             "Saving dictation"
         }
-        (_, CaptureMode::LiveTranscript) => "Processing live transcript",
     }
 }
 
@@ -17417,6 +17440,30 @@ mod tests {
             ),
             "Saving meeting"
         );
+        assert_eq!(
+            stage_label(
+                minutes_core::pipeline::PipelineStage::Transcribing,
+                CaptureMode::LiveTranscript
+            ),
+            "Transcribing meeting"
+        );
+        assert_eq!(
+            stage_label(
+                minutes_core::pipeline::PipelineStage::Summarizing,
+                CaptureMode::LiveTranscript
+            ),
+            "Generating meeting summary"
+        );
+    }
+
+    #[test]
+    fn live_stop_ui_hands_off_to_background_processing() {
+        let html = include_str!("../../src/index.html");
+        assert!(html.contains("Meeting saved, processing in background"));
+        assert!(html.contains("const processing = !!event.payload?.processing;"));
+        assert!(html.contains("processingBar.classList.add('active');"));
+        assert!(html.contains("startFastPoll();\n        checkStatus();"));
+        assert!(!html.contains("Processing live transcript"));
     }
 
     #[test]
@@ -17450,12 +17497,24 @@ mod tests {
             recording_health: None,
         };
 
+        let mut live_job = job.clone();
+        live_job.mode = CaptureMode::LiveTranscript;
+        live_job.title = None;
+
         let view = processing_job_view(job);
 
         assert_eq!(view.state, "summarizing");
         assert_eq!(view.stage.as_deref(), Some("summarizing"));
         assert_eq!(
             view.stage_label.as_deref(),
+            Some("Generating meeting summary")
+        );
+
+        let live_view = processing_job_view(live_job);
+        assert_eq!(live_view.title, "Live meeting");
+        assert_eq!(live_view.mode, "live-transcript");
+        assert_eq!(
+            live_view.stage_label.as_deref(),
             Some("Generating meeting summary")
         );
     }
@@ -20765,7 +20824,7 @@ impl Drop for LiveActiveGuard {
 /// Shared live transcript session runner. Spawned on a background thread by both
 /// cmd_start_live_transcript and handle_live_shortcut_event.
 fn run_live_session(app: tauri::AppHandle, active: Arc<AtomicBool>, stop_flag: Arc<AtomicBool>) {
-    let _guard = LiveActiveGuard {
+    let guard = LiveActiveGuard {
         active,
         app: app.clone(),
     };
@@ -20785,7 +20844,7 @@ fn run_live_session(app: tauri::AppHandle, active: Arc<AtomicBool>, stop_flag: A
             chrono::Local::now(),
         );
 
-    let _desktop_context_collector = live_context_session_id.as_ref().and_then(|session_id| {
+    let desktop_context_collector = live_context_session_id.as_ref().and_then(|session_id| {
         match minutes_core::desktop_context::DesktopContextCollector::start(
             session_id.clone(),
             minutes_core::desktop_context::DesktopContextSessionKind::LiveTranscript,
@@ -20809,7 +20868,7 @@ fn run_live_session(app: tauri::AppHandle, active: Arc<AtomicBool>, stop_flag: A
         minutes_core::live_partials::DEFAULT_PARTIAL_CHANNEL_CAPACITY,
         "standalone",
     );
-    let _capture_relay = match minutes_core::copilot::CaptureRelayServer::start(
+    let capture_relay = match minutes_core::copilot::CaptureRelayServer::start(
         minutes_core::copilot::CopilotEvidenceMode::CaptureRelayPartials,
         Some(partial_subscriber),
     ) {
@@ -20849,12 +20908,23 @@ fn run_live_session(app: tauri::AppHandle, active: Arc<AtomicBool>, stop_flag: A
             None
         }
     };
-    let result = minutes_core::live_transcript::run_with_partials(
-        stop_flag.clone(),
-        &config,
-        live_context_session_id.clone(),
-        Some(partial_publisher),
-    );
+    let process_in_background = config.live_transcript.promote_on_stop
+        == minutes_core::config::LiveTranscriptPromoteOnStop::Process;
+    let result = if process_in_background {
+        minutes_core::live_transcript::run_with_partials_for_background(
+            stop_flag.clone(),
+            &config,
+            live_context_session_id.clone(),
+            Some(partial_publisher),
+        )
+    } else {
+        minutes_core::live_transcript::run_with_partials(
+            stop_flag.clone(),
+            &config,
+            live_context_session_id.clone(),
+            Some(partial_publisher),
+        )
+    };
 
     stop_flag.store(false, Ordering::Relaxed);
 
@@ -20862,8 +20932,99 @@ fn run_live_session(app: tauri::AppHandle, active: Arc<AtomicBool>, stop_flag: A
         update_assistant_live_context(&workspace, false);
     }
 
+    // End the capture-only consumers before advertising that a new Live
+    // session can start. The durable processing worker never owns them.
+    drop(capture_relay);
+    drop(desktop_context_collector);
+
     match result {
         Ok((lines, duration, path)) => {
+            let mut queued_job = None;
+            let mut processing_error = None;
+            if process_in_background && path.extension().is_some_and(|ext| ext == "wav") {
+                let finished_at = chrono::Local::now();
+                match minutes_core::jobs::enqueue_preserved_capture_job(
+                    CaptureMode::LiveTranscript,
+                    None,
+                    &path,
+                    None,
+                    None,
+                    None,
+                    Some(finished_at),
+                    live_context_session_id.clone(),
+                    None,
+                    None,
+                ) {
+                    Ok(job) => {
+                        let jsonl_path = path.with_extension("jsonl");
+                        if let Some(session_id) = live_context_session_id.as_deref() {
+                            if let Err(error) =
+                                minutes_core::context_store::mark_live_transcript_processing(
+                                    session_id,
+                                    &job.id,
+                                    Path::new(&job.audio_path),
+                                    &jsonl_path,
+                                    &path,
+                                    Some(finished_at),
+                                )
+                            {
+                                tracing::warn!(
+                                    session_id,
+                                    job_id = %job.id,
+                                    error = %error,
+                                    "failed to attach archived Live artifacts to processing context"
+                                );
+                            }
+                        }
+                        minutes_core::pid::set_processing_status(
+                            job.stage.as_deref(),
+                            Some(job.mode),
+                            job.title.as_deref(),
+                            Some(&job.id),
+                            minutes_core::jobs::active_job_count(),
+                        )
+                        .ok();
+                        queued_job = Some(job);
+                    }
+                    Err(error) => {
+                        let detail = format!(
+                            "Your audio and live transcript are safe, but background processing could not start: {error}"
+                        );
+                        if let Some(session_id) = live_context_session_id.as_deref() {
+                            minutes_core::context_store::mark_live_transcript_complete(
+                                session_id,
+                                &path.with_extension("jsonl"),
+                                Some(&path),
+                                Some(finished_at),
+                                serde_json::json!({
+                                    "line_count": lines,
+                                    "duration_secs": duration,
+                                    "processing_queue_error": error.to_string(),
+                                }),
+                            )
+                            .ok();
+                        }
+                        if let Some(state) = app.try_state::<AppState>() {
+                            set_latest_output(
+                                &state.latest_output,
+                                Some(OutputNotice {
+                                    kind: "preserved-capture".into(),
+                                    title: "Meeting saved, processing not started".into(),
+                                    path: path.display().to_string(),
+                                    detail: detail.clone(),
+                                    job_id: None,
+                                }),
+                            );
+                        }
+                        processing_error = Some(detail);
+                    }
+                }
+            }
+
+            // The archive and durable queue record are safe. Clear Live before
+            // the stopped event so the UI and shortcuts can start another
+            // session immediately while this meeting processes.
+            drop(guard);
             eprintln!(
                 "[live-transcript] ended: {} lines in {:.0}s; saved to {}",
                 lines,
@@ -20877,12 +21038,29 @@ fn run_live_session(app: tauri::AppHandle, active: Arc<AtomicBool>, stop_flag: A
                         "lines": lines,
                         "duration_secs": duration,
                         "path": path.display().to_string(),
+                        "processing": queued_job.is_some(),
+                        "processing_job_id": queued_job.as_ref().map(|job| job.id.as_str()),
+                        "processing_error": processing_error,
                     }),
                 )
                 .ok();
             }
+            if queued_job.is_some() {
+                if let Some(state) = app.try_state::<AppState>() {
+                    sync_processing_indicator(&state.processing, &state.processing_stage);
+                    spawn_processing_worker(
+                        app.clone(),
+                        state.processing.clone(),
+                        state.processing_stage.clone(),
+                        state.latest_output.clone(),
+                        state.activation_progress.clone(),
+                        state.completion_notifications_enabled.clone(),
+                    );
+                }
+            }
         }
         Err(e) => {
+            drop(guard);
             eprintln!("[live-transcript] error: {}", e);
             if let Some(win) = app.get_webview_window("main") {
                 win.emit(
@@ -20894,10 +21072,8 @@ fn run_live_session(app: tauri::AppHandle, active: Arc<AtomicBool>, stop_flag: A
         }
     }
 
-    // Tray sync fires from `LiveActiveGuard`'s Drop once this function
-    // returns and the guard sets `live_transcript_active` to false. Calling
-    // sync_tray_state here would still see the flag as true and re-render
-    // the menu in Live mode.
+    // Every match arm drops `LiveActiveGuard` before its UI event so status
+    // polling observes the completed Live transition immediately.
 }
 
 /// Try to acquire the live transcript state. Returns Err with a message on conflict.
