@@ -791,6 +791,42 @@ pub fn run_with_partials(
     existing_context_session_id: Option<String>,
     partial_publisher: Option<LivePartialPublisher>,
 ) -> Result<(usize, f64, PathBuf), MinutesError> {
+    run_with_partials_internal(
+        stop_flag,
+        config,
+        existing_context_session_id,
+        partial_publisher,
+        false,
+    )
+}
+
+/// Run the desktop Live session, archive its recoverable files on stop, and
+/// return before configured meeting processing begins. The desktop owns
+/// enqueueing that archived capture in the durable background worker.
+#[cfg(feature = "whisper")]
+pub fn run_with_partials_for_background(
+    stop_flag: Arc<AtomicBool>,
+    config: &Config,
+    existing_context_session_id: Option<String>,
+    partial_publisher: Option<LivePartialPublisher>,
+) -> Result<(usize, f64, PathBuf), MinutesError> {
+    run_with_partials_internal(
+        stop_flag,
+        config,
+        existing_context_session_id,
+        partial_publisher,
+        true,
+    )
+}
+
+#[cfg(feature = "whisper")]
+fn run_with_partials_internal(
+    stop_flag: Arc<AtomicBool>,
+    config: &Config,
+    existing_context_session_id: Option<String>,
+    partial_publisher: Option<LivePartialPublisher>,
+    defer_processing: bool,
+) -> Result<(usize, f64, PathBuf), MinutesError> {
     let mark_precreated_session_failed = |error: &MinutesError| {
         if let Some(session_id) = existing_context_session_id.as_deref() {
             crate::context_store::mark_live_transcript_failed(
@@ -857,12 +893,22 @@ pub fn run_with_partials(
             // The writer is closed now. Keep the liveness lock until the fixed
             // scratch files have moved so a new session cannot truncate them,
             // then release it before the potentially long meeting pipeline.
-            let finalization = match crate::live_session::finalize_stopped_live_session_with_release(
-                config,
-                &pid::live_transcript_wav_path(),
-                &path,
-                || drop(pid_guard),
-            ) {
+            let finalization_result = if defer_processing {
+                crate::live_session::finalize_stopped_live_session_for_background_with_release(
+                    config,
+                    &pid::live_transcript_wav_path(),
+                    &path,
+                    || drop(pid_guard),
+                )
+            } else {
+                crate::live_session::finalize_stopped_live_session_with_release(
+                    config,
+                    &pid::live_transcript_wav_path(),
+                    &path,
+                    || drop(pid_guard),
+                )
+            };
+            let finalization = match finalization_result {
                 Ok(finalization) => finalization,
                 Err(error) => {
                     if let Some(session_id) = context_session_id.as_deref() {
@@ -876,21 +922,27 @@ pub fn run_with_partials(
                     return Err(error);
                 }
             };
-            if let Some(session_id) = context_session_id.as_deref() {
-                crate::context_store::mark_live_transcript_complete(
-                    session_id,
-                    finalization.jsonl_path(),
-                    finalization.wav_path(),
-                    Some(Local::now()),
-                    json!({
-                        "line_count": lines,
-                        "duration_secs": duration,
-                        "meeting_path": finalization
-                            .meeting_path()
-                            .map(|path| path.display().to_string()),
-                    }),
-                )
-                .ok();
+            let awaiting_background_processing = defer_processing
+                && config.live_transcript.promote_on_stop
+                    == crate::config::LiveTranscriptPromoteOnStop::Process
+                && finalization.wav_path().is_some();
+            if !awaiting_background_processing {
+                if let Some(session_id) = context_session_id.as_deref() {
+                    crate::context_store::mark_live_transcript_complete(
+                        session_id,
+                        finalization.jsonl_path(),
+                        finalization.wav_path(),
+                        Some(Local::now()),
+                        json!({
+                            "line_count": lines,
+                            "duration_secs": duration,
+                            "meeting_path": finalization
+                                .meeting_path()
+                                .map(|path| path.display().to_string()),
+                        }),
+                    )
+                    .ok();
+                }
             }
             Ok((lines, duration, finalization.output_path().to_path_buf()))
         }

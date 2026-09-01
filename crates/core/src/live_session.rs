@@ -102,6 +102,32 @@ where
         jsonl_path,
         Local::now(),
         release_live_lock,
+        true,
+    )
+}
+
+/// Archive a stopped live session and return before the meeting pipeline.
+///
+/// The desktop uses this path so capture can visibly end as soon as its
+/// recoverable files are safe. It then hands a separate link to the durable
+/// processing queue. CLI callers retain the configured inline behavior above.
+#[cfg(any(all(feature = "streaming", feature = "whisper"), test))]
+pub(crate) fn finalize_stopped_live_session_for_background_with_release<F>(
+    config: &Config,
+    wav_path: &Path,
+    jsonl_path: &Path,
+    release_live_lock: F,
+) -> Result<LiveSessionStopResult, MinutesError>
+where
+    F: FnOnce(),
+{
+    finalize_stopped_live_session_at(
+        config,
+        wav_path,
+        jsonl_path,
+        Local::now(),
+        release_live_lock,
+        false,
     )
 }
 
@@ -111,6 +137,7 @@ fn finalize_stopped_live_session_at<F>(
     jsonl_path: &Path,
     stopped_at: DateTime<Local>,
     release_live_lock: F,
+    process_inline: bool,
 ) -> Result<LiveSessionStopResult, MinutesError>
 where
     F: FnOnce(),
@@ -142,7 +169,9 @@ where
     let (preserved_wav, preserved_jsonl) = preserve_live_pair(wav_path, jsonl_path, stopped_at)?;
     release_live_lock();
 
-    if config.live_transcript.promote_on_stop == LiveTranscriptPromoteOnStop::Preserve {
+    if config.live_transcript.promote_on_stop == LiveTranscriptPromoteOnStop::Preserve
+        || !process_inline
+    {
         tracing::info!(
             wav = %preserved_wav.display(),
             jsonl = %preserved_jsonl.display(),
@@ -333,6 +362,37 @@ mod tests {
         );
         assert!(!wav.exists());
         assert!(!jsonl.exists());
+    }
+
+    #[test]
+    fn background_process_stop_archives_pair_without_running_pipeline() {
+        let (_temp, wav, jsonl, mut config) = stopped_session();
+        config.live_transcript.promote_on_stop = LiveTranscriptPromoteOnStop::Process;
+        let released = std::cell::Cell::new(false);
+
+        let result = finalize_stopped_live_session_for_background_with_release(
+            &config,
+            &wav,
+            &jsonl,
+            || {
+                assert!(!wav.exists(), "fixed WAV must be clear before unlock");
+                assert!(!jsonl.exists(), "fixed JSONL must be clear before unlock");
+                released.set(true);
+            },
+        )
+        .unwrap();
+
+        let LiveSessionStopResult::Preserved {
+            wav_path,
+            jsonl_path,
+        } = result
+        else {
+            panic!("desktop stop must return the archived pair before processing");
+        };
+        assert!(released.get());
+        assert!(wav_path.exists());
+        assert!(jsonl_path.exists());
+        assert!(!config.output_dir.exists());
     }
 
     #[test]

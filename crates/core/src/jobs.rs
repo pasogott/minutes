@@ -532,8 +532,109 @@ pub fn enqueue_capture_job(
     calendar_event: Option<CalendarEvent>,
     template_slug: Option<String>,
 ) -> std::io::Result<ProcessingJob> {
+    enqueue_capture_job_with_id(
+        next_job_id(),
+        mode,
+        title,
+        audio_path,
+        user_notes,
+        pre_context,
+        recording_started_at,
+        recording_finished_at,
+        context_session_id,
+        calendar_event,
+        template_slug,
+    )
+}
+
+/// Queue an already-preserved capture without transferring ownership of the
+/// source file to the processing worker.
+///
+/// Live Transcript archives its recoverable WAV/JSONL pair before returning
+/// control to the desktop. The worker normally moves its input alongside the
+/// finished Markdown, so pointing a job directly at that archived WAV would
+/// dismantle the recovery pair on success. Give the job its own hard link
+/// (copy fallback) instead; the archived source remains durable through
+/// success, failure, retry, and worker crashes.
+#[allow(clippy::too_many_arguments)]
+pub fn enqueue_preserved_capture_job(
+    mode: CaptureMode,
+    title: Option<String>,
+    preserved_audio_path: &Path,
+    user_notes: Option<String>,
+    pre_context: Option<String>,
+    recording_started_at: Option<DateTime<Local>>,
+    recording_finished_at: Option<DateTime<Local>>,
+    context_session_id: Option<String>,
+    calendar_event: Option<CalendarEvent>,
+    template_slug: Option<String>,
+) -> std::io::Result<ProcessingJob> {
+    let job_id = next_job_id();
+    let audio_path = link_preserved_capture_into_job(&job_id, preserved_audio_path)?;
+    let result = enqueue_capture_job_with_id(
+        job_id,
+        mode,
+        title,
+        audio_path.clone(),
+        user_notes,
+        pre_context,
+        recording_started_at,
+        recording_finished_at,
+        context_session_id,
+        calendar_event,
+        template_slug,
+    );
+    if result.is_err() {
+        fs::remove_file(audio_path).ok();
+    }
+    result
+}
+
+fn link_preserved_capture_into_job(
+    job_id: &str,
+    preserved_audio_path: &Path,
+) -> std::io::Result<PathBuf> {
+    let destination = job_capture_path_for_source(job_id, preserved_audio_path);
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    if let Err(link_error) = fs::hard_link(preserved_audio_path, &destination) {
+        fs::copy(preserved_audio_path, &destination).map_err(|copy_error| {
+            std::io::Error::new(
+                copy_error.kind(),
+                format!(
+                    "could not prepare preserved capture for processing (hard link: {link_error}; copy: {copy_error})"
+                ),
+            )
+        })?;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(error) = fs::set_permissions(&destination, fs::Permissions::from_mode(0o600)) {
+            fs::remove_file(&destination).ok();
+            return Err(error);
+        }
+    }
+    Ok(destination)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn enqueue_capture_job_with_id(
+    job_id: String,
+    mode: CaptureMode,
+    title: Option<String>,
+    audio_path: PathBuf,
+    user_notes: Option<String>,
+    pre_context: Option<String>,
+    recording_started_at: Option<DateTime<Local>>,
+    recording_finished_at: Option<DateTime<Local>>,
+    context_session_id: Option<String>,
+    calendar_event: Option<CalendarEvent>,
+    template_slug: Option<String>,
+) -> std::io::Result<ProcessingJob> {
     let job = ProcessingJob {
-        id: next_job_id(),
+        id: job_id,
         mode,
         content_type: mode.content_type(),
         title,
@@ -1934,6 +2035,50 @@ mod tests {
             assert!(job_path(&job.id).exists());
             assert!(PathBuf::from(&job.audio_path).exists());
             assert!(crate::screen::screens_dir_for(Path::new(&job.audio_path)).exists());
+        });
+    }
+
+    #[test]
+    fn queue_preserved_capture_keeps_archive_through_output_preservation() {
+        with_temp_home(|tmp| {
+            let live_sessions = tmp.path().join(".minutes/live-sessions");
+            fs::create_dir_all(&live_sessions).unwrap();
+            let archived_wav = live_sessions.join("live-transcript-20260901-100005.wav");
+            let archived_jsonl = archived_wav.with_extension("jsonl");
+            fs::write(&archived_wav, b"recoverable-live-audio").unwrap();
+            fs::write(&archived_jsonl, b"{\"text\":\"hello\"}\n").unwrap();
+
+            let mut job = enqueue_preserved_capture_job(
+                CaptureMode::LiveTranscript,
+                None,
+                &archived_wav,
+                None,
+                None,
+                None,
+                Some(Local::now()),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+            let job_audio = PathBuf::from(&job.audio_path);
+            assert_ne!(job_audio, archived_wav);
+            assert_eq!(fs::read(&job_audio).unwrap(), b"recoverable-live-audio");
+            assert_eq!(fs::read(&archived_wav).unwrap(), b"recoverable-live-audio");
+            assert!(archived_jsonl.exists());
+            assert!(job_path(&job.id).exists());
+
+            let output_path = tmp.path().join("meetings/live-meeting.md");
+            fs::create_dir_all(output_path.parent().unwrap()).unwrap();
+            fs::write(&output_path, "# Live meeting\n").unwrap();
+            job.output_path = Some(output_path.display().to_string());
+            preserve_audio_alongside_output(&job, &Config::default());
+
+            assert!(output_path.with_extension("wav").exists());
+            assert!(!job_audio.exists());
+            assert_eq!(fs::read(&archived_wav).unwrap(), b"recoverable-live-audio");
+            assert!(archived_jsonl.exists());
         });
     }
 

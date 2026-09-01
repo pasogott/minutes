@@ -7997,7 +7997,9 @@
     }
 
     function currentProcessingTitle(mode) {
-      return mode === 'quick-thought' ? 'Processing quick thought' : 'Processing recording';
+      if (mode === 'quick-thought') return 'Processing quick thought';
+      if (mode === 'live-transcript') return 'Processing meeting';
+      return 'Processing recording';
     }
 
     function formatIsoElapsed(isoString) {
@@ -8056,7 +8058,11 @@
     }
 
     function processingJobMeta(job) {
-      const mode = job.mode === 'quick-thought' ? 'Quick thought' : 'Meeting';
+      const mode = job.mode === 'quick-thought'
+        ? 'Quick thought'
+        : job.mode === 'live-transcript'
+          ? 'Live meeting'
+          : 'Meeting';
       if (job.state === 'queued') {
         const elapsed = formatIsoElapsed(job.createdAt);
         return elapsed ? `${mode} · waiting ${elapsed}` : `${mode} · waiting`;
@@ -8084,7 +8090,7 @@
       switch (job?.mode) {
         case 'quick-thought': return 'Quick thought';
         case 'dictation': return 'Dictation';
-        case 'live-transcript': return 'Live transcript';
+        case 'live-transcript': return 'Live meeting';
         case 'meeting':
         default:
           return 'Meeting recording';
@@ -8104,21 +8110,22 @@
 
     function processingStatusTitle(status, mode) {
       const job = primaryProcessingJob(status);
+      const processingMode = job?.mode || mode;
       switch (job?.state) {
         case 'transcribing':
-          return mode === 'quick-thought' ? 'Transcribing quick thought' : 'Transcribing recording';
+          return processingMode === 'quick-thought' ? 'Transcribing quick thought' : 'Transcribing meeting';
         case 'transcript-only':
           return 'Transcript ready, summarizing';
         case 'diarizing':
           return 'Separating speakers';
         case 'summarizing':
-          return mode === 'quick-thought' ? 'Generating memo summary' : 'Generating meeting summary';
+          return processingMode === 'quick-thought' ? 'Generating memo summary' : 'Generating meeting summary';
         case 'saving':
-          return mode === 'quick-thought' ? 'Saving quick thought' : 'Saving recording';
+          return processingMode === 'quick-thought' ? 'Saving quick thought' : 'Saving meeting';
         default:
           return status.processingTitle
             ? `Processing ${status.processingTitle}`
-            : currentProcessingTitle(mode);
+            : currentProcessingTitle(processingMode);
       }
     }
 
@@ -16638,10 +16645,24 @@
       isLiveTranscript = false;
       liveBar.classList.remove('active');
       setFooterCaptureMode(false);
-      statusPill.className = 'status-pill';
-      statusPill.textContent = 'idle';
-      stopFastPoll();
-      loadMeetings();
+      const processing = !!event.payload?.processing;
+      if (processing) {
+        statusPill.className = 'status-pill processing';
+        statusPill.textContent = 'queued';
+        processingBar.classList.add('active');
+        processingTitle.textContent = 'Meeting saved, processing in background';
+        processingStage.textContent = 'Queued for processing';
+        processingElapsed.textContent = '';
+        startFastPoll();
+        checkStatus();
+      } else {
+        statusPill.className = 'status-pill';
+        statusPill.textContent = 'idle';
+        processingBar.classList.remove('active');
+        stopFastPoll();
+        loadMeetings();
+        if (event.payload?.processing_error) checkStatus();
+      }
       playCue('stop');
     });
 
