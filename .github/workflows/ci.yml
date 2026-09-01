@@ -734,6 +734,9 @@ jobs:
       - name: Verify Recall chat chunk contract
         run: node scripts/check_recall_chunk_contract.mjs
 
+      - name: Verify Recall terminal input privacy contract
+        run: node --test scripts/check_recall_terminal_input_contract.test.mjs
+
       - name: Test design-token checker
         run: node --test scripts/check_design_tokens.test.mjs
 
