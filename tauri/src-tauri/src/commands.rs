@@ -13975,9 +13975,9 @@ mod tests {
         assert!(html.contains("let recallTerminalInputReliable = true;"));
         assert!(html.contains("recallTerminalInputReliable = false;"));
         assert!(html.contains(
-            "pendingRecallTerminalMeetingPath && question && !recallTerminalInputReliable"
+            "pendingRecallTerminalMeetingPath && (!question || !recallTerminalInputReliable)"
         ));
-        assert!(html.contains("no meeting context was read"));
+        assert!(html.contains("No meeting context was read"));
     }
 
     #[test]

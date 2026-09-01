@@ -14338,6 +14338,8 @@
     let recallTerminalInputDraft = '';
     let recallTerminalInputReliable = true;
     let recallTerminalInputQueue = Promise.resolve();
+    let recallTerminalHasUserInputSignal = false;
+    let recallTerminalNextDataIsUserInput = false;
 
     // An informational notice ("Codex is open in Terminal. Ask your question
     // here...") earns its space exactly once: it tells you what the panel is
@@ -14806,6 +14808,19 @@
       recallFitAddon = new FitAddon.FitAddon();
       recallTerminal.loadAddon(recallFitAddon);
       recallTerminal.open(recallTerminalContainer);
+      // xterm's public onData event mixes real keyboard/paste input with
+      // automatic terminal replies generated for cursor and capability
+      // queries. Its internal user-input signal fires synchronously just
+      // before onData for keyboard, paste, and mouse input, which lets us keep
+      // those replies out of the privacy-sensitive shadow line. If a future
+      // xterm removes the signal, retain the older fail-closed behavior.
+      const onRecallTerminalUserInput = recallTerminal?._core?.coreService?.onUserInput;
+      if (typeof onRecallTerminalUserInput === 'function') {
+        recallTerminalHasUserInputSignal = true;
+        onRecallTerminalUserInput(() => {
+          recallTerminalNextDataIsUserInput = true;
+        });
+      }
       window.MINUTES_XTERM_THEME_QUERY.addEventListener('change', recallThemeHandler);
       document.addEventListener('uizoomchange', () => {
         recallTerminal.options.fontSize = getTerminalFontSize();
@@ -14847,19 +14862,30 @@
 
       recallTerminal.onData((data) => {
         if (!recallPtyAlive) return;
+        const isUserInput = !recallTerminalHasUserInputSignal || recallTerminalNextDataIsUserInput;
+        recallTerminalNextDataIsUserInput = false;
         // Typing into the terminal is the moment the "ask your question here"
-        // notice stops being useful.
-        dismissRecallProviderNotice();
+        // notice stops being useful. Automatic terminal replies are invisible
+        // plumbing and should not dismiss it.
+        if (isUserInput) dismissRecallProviderNotice();
         // Serialize PTY writes so the context-preparation command completes
         // before the Enter that submits the first real question. Normal typing
         // still follows the same one-invoke-per-input path as before.
         recallTerminalInputQueue = recallTerminalInputQueue
-          .then(() => forwardRecallTerminalInput(data))
+          .then(() => forwardRecallTerminalData(data, isUserInput))
           .catch((error) => {
             console.error('Recall terminal input:', error);
             setRecallProviderNotice(String(error), 'error');
           });
       });
+    }
+
+    async function forwardRecallTerminalData(data, isUserInput) {
+      if (!isUserInput) {
+        await invoke('cmd_pty_input', { sessionId: SESSION_ID, data });
+        return;
+      }
+      await forwardRecallTerminalInput(data);
     }
 
     function updateRecallTerminalInputDraft(data) {
@@ -14909,9 +14935,9 @@
         }
 
         const question = recallTerminalInputDraft.trim();
-        if (pendingRecallTerminalMeetingPath && question && !recallTerminalInputReliable) {
+        if (pendingRecallTerminalMeetingPath && (!question || !recallTerminalInputReliable)) {
           setRecallProviderNotice(
-            'For privacy, Minutes could not verify the edited input line. Press Ctrl-U, retype the command or question, and submit again; no meeting context was read.',
+            'For privacy, Minutes could not verify a complete question or command. Press Ctrl-U, retype it without cursor editing, and submit again. No meeting context was read.',
             'error'
           );
           return;
