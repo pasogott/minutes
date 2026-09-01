@@ -15558,7 +15558,8 @@
         recallNudge.classList.add('active');
         return;
       }
-      openRecall(mode === 'debrief' ? 'assistant' : mode);
+      const conversationMode = mode === 'prep' || mode === 'debrief' ? 'assistant' : mode;
+      openRecall(conversationMode);
       if (mode === 'prep') setRecallPhase('prep', context);
       else if (mode === 'debrief') setRecallPhase('debrief', context);
     }
