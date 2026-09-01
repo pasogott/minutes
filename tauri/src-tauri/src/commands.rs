@@ -13981,6 +13981,16 @@ mod tests {
     }
 
     #[test]
+    fn recall_prep_phase_opens_the_supported_assistant_conversation_mode() {
+        let html = include_str!("../../src/index.html");
+        assert!(html.contains(
+            "const conversationMode = mode === 'prep' || mode === 'debrief' ? 'assistant' : mode;"
+        ));
+        assert!(html.contains("openRecall(conversationMode);"));
+        assert!(html.contains("if (mode === 'prep') setRecallPhase('prep', context);"));
+    }
+
+    #[test]
     fn recall_ui_hides_unavailable_chat_and_uses_the_configured_assistant_name() {
         let html = include_str!("../../src/index.html");
         assert!(html.contains("modeToggleBtn.hidden = !nativeAvailable"));
