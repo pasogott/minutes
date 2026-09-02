@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.silverstein/minutes",
+  "description": "The private, owned conversation-memory layer for AI. Record, transcribe, and search every meeting.",
+  "repository": {
+    "url": "https://github.com/silverstein/minutes",
+    "source": "github"
+  },
+  "version": "0.25.6",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "minutes-mcp",
+      "version": "0.25.6",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "npx"
+    }
+  ]
+}

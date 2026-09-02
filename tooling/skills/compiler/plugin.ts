@@ -8,6 +8,7 @@ interface ClaudePluginManifest {
   description: string;
   skills: Array<{ name: string; path: string }>;
   agents?: Array<{ name: string; path: string }>;
+  mcpServers?: Record<string, unknown>;
   hooks?: Record<string, unknown>;
 }
 
@@ -63,6 +64,13 @@ function renderClaudePluginManifestText(manifest: ClaudePluginManifest): string 
     lines.push("  \"agents\": [");
     lines.push(manifest.agents.map((agent) => `    ${renderObjectInline(agent)}`).join(",\n"));
     lines.push("  ],");
+  }
+
+  if (manifest.mcpServers) {
+    const renderedMcpServers = renderUnknown(manifest.mcpServers, 2).split("\n");
+    lines.push(`  "mcpServers": ${renderedMcpServers[0]}`);
+    lines.push(...renderedMcpServers.slice(1).map((line) => `  ${line}`));
+    lines[lines.length - 1] += ",";
   }
 
   if (manifest.hooks) {

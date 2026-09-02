@@ -26,6 +26,7 @@ const domainOneFiles = [
   "crates/sdk/package.json",
   "manifest.json",
   "manifest.mcpb.json",
+  "server.json",
   "crates/mcp/src/index.ts",
   "crates/mcp/package-lock.json",
   "crates/sdk/package-lock.json",
@@ -149,6 +150,21 @@ async function updateJsonVersion(root, file, readCurrent, version) {
     throw new Error(`${file} must contain exactly one live JSON version declaration`);
   }
   await writeText(root, file, text.replace(pattern, `$1${version}$2`));
+}
+
+async function updateServerJsonVersions(root, version) {
+  const file = "server.json";
+  const text = await readText(root, file);
+  const value = JSON.parse(text);
+  if (typeof value.version !== "string") {
+    throw new Error(`${file} is missing its top-level version field`);
+  }
+  if (typeof value.packages?.[0]?.version !== "string") {
+    throw new Error(`${file} is missing packages[0].version`);
+  }
+  value.version = version;
+  value.packages[0].version = version;
+  await writeText(root, file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function workspaceVersion(text) {
@@ -291,6 +307,7 @@ async function applyDomainOneWrites(root, version) {
   ]) {
     await updateJsonVersion(root, file, (value) => value.version, version);
   }
+  await updateServerJsonVersions(root, version);
 
   await writeText(
     root,
@@ -478,6 +495,9 @@ async function main() {
       console.log(`Dry run: ${mode} version ${existingVersion} -> ${options.version}`);
       console.log("Files that would change:");
       for (const file of changedFiles) console.log(`  ${file}`);
+      if (!options.plugin) {
+        console.log(`Domain 2 verified unchanged: ${pluginFiles[0]}`);
+      }
       console.log("\nUnified diff:");
       process.stdout.write(patch);
     } else {

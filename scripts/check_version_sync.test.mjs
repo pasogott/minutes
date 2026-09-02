@@ -43,6 +43,10 @@ async function makeRepo(t) {
   await writeJson(root, "crates/sdk/package.json", { name: "minutes-sdk", version: mainVersion });
   await writeJson(root, "manifest.json", { version: mainVersion });
   await writeJson(root, "manifest.mcpb.json", { version: mainVersion });
+  await writeJson(root, "server.json", {
+    version: mainVersion,
+    packages: [{ version: mainVersion }],
+  });
   await writeFixture(
     root,
     "crates/mcp/src/index.ts",
@@ -125,7 +129,7 @@ test("matching miniature repo passes with independent plugin and ignored version
   assert.equal(report.ok, true);
   assert.equal(report.domain1.expected, mainVersion);
   assert.equal(report.domain2.expected, pluginVersion);
-  assert.equal(report.domain1.sources.length, 15);
+  assert.equal(report.domain1.sources.length, 17);
   assert.equal(report.domain2.sources.length, 3);
 });
 
@@ -161,6 +165,19 @@ const domain1Mutations = [
     key: ".version",
     mutate: (root) => mutateJson(root, file, (value) => (value.version = changedVersion)),
   })),
+  {
+    name: "server.json top-level version",
+    file: "server.json",
+    key: ".version",
+    mutate: (root) => mutateJson(root, "server.json", (value) => (value.version = changedVersion)),
+  },
+  {
+    name: "server.json package version",
+    file: "server.json",
+    key: ".packages[0].version",
+    mutate: (root) =>
+      mutateJson(root, "server.json", (value) => (value.packages[0].version = changedVersion)),
+  },
   {
     name: "MCP server constant",
     file: "crates/mcp/src/index.ts",

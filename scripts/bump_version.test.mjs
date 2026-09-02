@@ -155,6 +155,10 @@ async function makeRepo(t) {
   });
   await writeJson(root, "manifest.json", { version: initialVersion, tools: [] });
   await writeJson(root, "manifest.mcpb.json", { version: initialVersion });
+  await writeJson(root, "server.json", {
+    version: initialVersion,
+    packages: [{ version: initialVersion }],
+  });
   await writeFixture(
     root,
     "crates/mcp/src/index.ts",
@@ -268,6 +272,8 @@ test("dry-run prints its file plan and diff without touching the real tree", asy
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /Dry run: main version 1\.2\.3 -> 1\.3\.0-beta\.1/);
   assert.match(result.stdout, /Files that would change:/);
+  assert.match(result.stdout, /server\.json/);
+  assert.match(result.stdout, /Domain 2 verified unchanged: \.claude-plugin\/marketplace\.json/);
   assert.match(result.stdout, /diff --git a\/Cargo\.toml b\/Cargo\.toml/);
   assert.equal(status(root), "");
   await assertSnapshot(root, before);
@@ -287,6 +293,7 @@ test("real run updates every Domain-1 source and passes the checker", async (t) 
     "crates/sdk/package.json",
     "manifest.json",
     "manifest.mcpb.json",
+    "server.json",
     "crates/mcp/src/index.ts",
     "crates/mcp/package-lock.json",
     "crates/sdk/package-lock.json",
@@ -295,6 +302,9 @@ test("real run updates every Domain-1 source and passes the checker", async (t) 
   ]) {
     assert.equal(await readVersion(root, file), nextVersion, `${file} contains the new version`);
   }
+  const server = JSON.parse(await readFile(path.join(root, "server.json"), "utf8"));
+  assert.equal(server.version, nextVersion);
+  assert.equal(server.packages[0].version, nextVersion);
   const check = runChecker(root);
   assert.equal(check.status, 0, check.stderr || check.stdout);
   for (const pluginFile of [

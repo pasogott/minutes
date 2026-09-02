@@ -191,6 +191,12 @@ function collectDomains(root) {
     source("manifest.mcpb.json", ".version", () =>
       requireVersion(readJson(root, "manifest.mcpb.json").version, ".version"),
     ),
+    source("server.json", ".version", () =>
+      requireVersion(readJson(root, "server.json").version, ".version"),
+    ),
+    source("server.json", ".packages[0].version", () =>
+      requireVersion(readJson(root, "server.json").packages?.[0]?.version, ".packages[0].version"),
+    ),
     source("crates/mcp/src/index.ts", "MCP_SERVER_VERSION", () =>
       mcpServerVersion(readText(root, "crates/mcp/src/index.ts")),
     ),
