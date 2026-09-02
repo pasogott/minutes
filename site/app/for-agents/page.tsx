@@ -13,7 +13,7 @@ import skillsCatalog from "@/lib/skills-catalog.json";
 export const metadata: Metadata = {
   title: "Minutes — local conversation infrastructure for agents",
   description:
-    "Open-source conversation infrastructure for agents. Minutes captures audio locally and exposes structured meeting memory through plain files, MCP tools, CLI commands, and live transcript streams. No cloud lock-in, no SDK, no API key.",
+    "Open-source conversation infrastructure for agents: local audio capture exposed as plain files, MCP tools, CLI commands, and live transcript streams.",
   alternates: { canonical: "/for-agents" },
 };
 

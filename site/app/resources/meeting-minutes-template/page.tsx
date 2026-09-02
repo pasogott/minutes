@@ -7,7 +7,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "Meeting minutes templates (markdown, copy-paste ready)",
   description:
-    "Four meeting minutes templates in clean markdown — standard team meeting, board meeting, action-item-focused, and 1:1 — plus what actually belongs in minutes and what doesn't.",
+    "Four meeting minutes templates in markdown: team meeting, board meeting, action-item-focused, and 1:1, plus what belongs in minutes and what does not.",
   alternates: {
     canonical: "/resources/meeting-minutes-template",
   },

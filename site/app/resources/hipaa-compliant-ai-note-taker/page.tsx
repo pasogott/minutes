@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "HIPAA-compliant AI note takers: the actual state of play",
   description:
-    "Which AI note takers can be used with PHI, under exactly what conditions — Otter, Fireflies, Fathom, Krisp, Granola — plus the on-device architecture that removes the BAA question entirely. Every claim sourced to the vendor's own documentation.",
+    "Which AI note takers can be used with PHI and under what conditions: Otter, Fireflies, Fathom, Krisp, Granola. Every claim sourced to the vendor.",
   alternates: {
     canonical: "/resources/hipaa-compliant-ai-note-taker",
   },

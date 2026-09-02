@@ -15,7 +15,7 @@ const primaryNav = [
   { label: "Compare", href: "/compare" },
   {
     label: "Resources",
-    href: "/resources/best-meeting-tools-for-claude-code-and-codex",
+    href: "/resources",
   },
   { label: "Docs", href: "/docs" },
 ] as const;

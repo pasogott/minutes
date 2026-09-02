@@ -44,24 +44,30 @@ const OSS_GRANOLA = "Open-source alternatives to Granola AI";
 const MCP_TOOLS = "Best MCP meeting memory tools";
 const AGENT_TOOLS = "Best meeting tools for Claude Code and Codex";
 const TEMPLATE = "Meeting minutes templates";
+const FF_TEAMS = "Remove Fireflies AI from Microsoft Teams";
+const FF_ZOOM = "Remove Fireflies AI from Zoom";
+const FF_SAFE = "Is Fireflies AI safe?";
+const FF_CANCEL = "How to cancel Fireflies AI";
 
 export const RELATED: Record<string, RelatedLink[]> = {
   // Removing notetaker bots.
   "remove-ai-notetaker-bots-from-meetings": [
     R("remove-otter-ai-from-zoom", OTTER_ZOOM, "The step-by-step version for the most common case."),
     R("stop-fireflies-from-joining-meetings", FIREFLIES_JOIN, "Fireflies auto-joins from your calendar, so the fix is different."),
+    R("remove-fireflies-ai-from-teams", FF_TEAMS, "Teams adds a role system that decides who can remove anything at all."),
     R("turn-off-built-in-ai-notetakers", BUILTIN, "Zoom and Teams run their own notetakers, which no bot-removal step touches."),
     R("is-it-legal-to-record-a-meeting", LEGAL_RECORD, "If a bot recorded you without consent, whether that was lawful depends on your state."),
   ],
   "remove-otter-ai-from-zoom": [
     R("remove-ai-notetaker-bots-from-meetings", BOTS_HUB, "The same problem across every vendor and platform."),
-    R("stop-fireflies-from-joining-meetings", FIREFLIES_JOIN, "If more than one notetaker is joining, this is usually the other one."),
+    R("remove-fireflies-ai-from-zoom", FF_ZOOM, "If more than one notetaker is joining, this is usually the other one."),
     R("turn-off-built-in-ai-notetakers", BUILTIN, "Removing Otter does not stop Zoom's own AI Companion."),
     R("is-otter-ai-hipaa-compliant", OTTER_HIPAA, "What Otter does with the recordings it already has."),
   ],
   "stop-fireflies-from-joining-meetings": [
     R("remove-ai-notetaker-bots-from-meetings", BOTS_HUB, "The same problem across every vendor and platform."),
-    R("remove-otter-ai-from-zoom", OTTER_ZOOM, "The Otter equivalent, which works differently."),
+    R("remove-fireflies-ai-from-teams", FF_TEAMS, "The Teams-specific version, including who is allowed to remove it."),
+    R("remove-fireflies-ai-from-zoom", FF_ZOOM, "The Zoom-specific version, including the uninstall and the team setting that overrides yours."),
     R("turn-off-built-in-ai-notetakers", BUILTIN, "Platform-native notetakers survive removing every third-party bot."),
     R("is-fireflies-ai-hipaa-compliant", FIREFLIES_HIPAA, "What Fireflies does with the transcripts it already holds."),
   ],
@@ -70,6 +76,31 @@ export const RELATED: Record<string, RelatedLink[]> = {
     R("remove-otter-ai-from-zoom", OTTER_ZOOM, "The most common third-party bot on Zoom."),
     R("stop-fireflies-from-joining-meetings", FIREFLIES_JOIN, "Calendar-driven auto-join, which platform settings do not cover."),
     R("is-it-legal-to-record-a-meeting", LEGAL_RECORD, "Consent rules apply to the platform's own recorder too."),
+  ],
+
+  "remove-fireflies-ai-from-teams": [
+    R("stop-fireflies-from-joining-meetings", FIREFLIES_JOIN, "The Fireflies settings and recording rules, in full."),
+    R("remove-fireflies-ai-from-zoom", FF_ZOOM, "The same bot on Zoom, where the controls are different."),
+    R("turn-off-built-in-ai-notetakers", BUILTIN, "Teams runs its own notetaker, which removing Fireflies does not touch."),
+    R("remove-ai-notetaker-bots-from-meetings", BOTS_HUB, "Every vendor and platform in one place."),
+  ],
+  "remove-fireflies-ai-from-zoom": [
+    R("stop-fireflies-from-joining-meetings", FIREFLIES_JOIN, "The Fireflies settings and recording rules, in full."),
+    R("remove-otter-ai-from-zoom", OTTER_ZOOM, "The Otter version, if that is the other bot in your calls."),
+    R("remove-fireflies-ai-from-teams", FF_TEAMS, "The same bot on Teams, where roles decide who can remove it."),
+    R("remove-ai-notetaker-bots-from-meetings", BOTS_HUB, "Every vendor and platform in one place."),
+  ],
+  "is-fireflies-ai-safe": [
+    R("is-fireflies-ai-hipaa-compliant", FIREFLIES_HIPAA, "The narrower question, with the plan and storage conditions."),
+    R("is-it-legal-to-record-a-meeting", LEGAL_RECORD, "Whether the bot's announcement counts as consent where you are."),
+    R("stop-fireflies-from-joining-meetings", FIREFLIES_JOIN, "If the review sent you looking for the off switch."),
+    R("how-to-cancel-fireflies-ai", FF_CANCEL, "If it sent you further than that."),
+  ],
+  "how-to-cancel-fireflies-ai": [
+    R("stop-fireflies-from-joining-meetings", FIREFLIES_JOIN, "Cancelling does not stop the bot; this does."),
+    R("is-fireflies-ai-safe", FF_SAFE, "If you are leaving over privacy, the sourced review of what Fireflies actually does."),
+    R("is-fireflies-ai-hipaa-compliant", FIREFLIES_HIPAA, "If you are leaving because of PHI."),
+    R("open-source-alternatives-to-granola-ai", OSS_GRANOLA, "Open-source, local options once you have left."),
   ],
 
   // Compliance.
@@ -95,6 +126,7 @@ export const RELATED: Record<string, RelatedLink[]> = {
     R("hipaa-compliant-ai-note-taker", HIPAA_HUB, "How the vendors compare on the same question."),
     R("is-otter-ai-hipaa-compliant", OTTER_HIPAA, "The same question about the other common choice."),
     R("hipaa-compliant-transcription", HIPAA_TRANSCRIPTION, "What the rule requires of transcription generally."),
+    R("is-fireflies-ai-safe", FF_SAFE, "The broader privacy review: storage, training, access, and consent."),
     R("stop-fireflies-from-joining-meetings", FIREFLIES_JOIN, "If the answer sent you looking for the off switch."),
   ],
   "is-granola-hipaa-compliant": [

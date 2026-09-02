@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "Is it legal to record a meeting? Consent law, explained",
   description:
-    "One-party vs all-party consent states, what changes when an AI notetaker does the recording, workplace and cross-state rules, and the consent script that keeps you clear everywhere. Sourced, with a state-law reference.",
+    "One-party vs all-party consent states, what changes when an AI notetaker records, workplace and cross-state rules, and a consent script. Sourced.",
   alternates: {
     canonical: "/resources/is-it-legal-to-record-a-meeting",
   },

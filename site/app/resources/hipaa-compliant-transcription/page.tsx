@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "HIPAA-compliant transcription: what the rule actually requires",
   description:
-    "No product is HIPAA certified, because HHS certifies none. What decides the vendor question is the business associate test in 45 CFR 160.103. The three transcription architectures, what a BAA does and does not settle, and the obligations that stay yours either way.",
+    "No product is HIPAA certified; HHS certifies none. The business associate test in 45 CFR 160.103, three transcription designs, and what a BAA settles.",
   alternates: {
     canonical: "/resources/hipaa-compliant-transcription",
   },

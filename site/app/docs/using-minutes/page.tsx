@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Using Minutes — the desktop app guide",
   description:
-    "How to use the Minutes desktop app: recording, the command palette and shortcuts, dictation, voice memos, getting names right, consent settings, and health checks.",
+    "How to use the Minutes desktop app: recording, the command palette, dictation, voice memos, getting names right, consent settings, and health checks.",
   alternates: {
     canonical: "/docs/using-minutes",
   },

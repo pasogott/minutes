@@ -4,7 +4,7 @@ import { ComparePage } from "@/components/compare-page";
 export const metadata: Metadata = {
   title: "Minutes vs Granola AI",
   description:
-    "Minutes vs Granola AI: both skip the meeting bot and capture locally, but Granola transcribes and stores in its US cloud while Minutes keeps every step on your device. A sourced, fit-based comparison.",
+    "Both skip the meeting bot and capture locally, but Granola transcribes and stores in its US cloud while Minutes keeps every step on your device.",
   alternates: {
     canonical: "/compare/granola-vs-minutes",
   },

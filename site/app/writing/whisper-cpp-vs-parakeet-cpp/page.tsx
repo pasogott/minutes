@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "whisper.cpp vs parakeet.cpp for local transcription — minutes",
   description:
-    "A candid comparison of two local transcription engines: accuracy, Apple Silicon speed, language coverage, build friction, and why Minutes currently selects sealed Whisper.",
+    "A candid comparison of two local transcription engines: accuracy, Apple Silicon speed, language coverage, build friction, and why Minutes picks Whisper.",
   alternates: {
     canonical: "/writing/whisper-cpp-vs-parakeet-cpp",
   },

@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "How to stop Fireflies from joining your meetings",
   description:
-    "Fireflies says that removing the notetaker within three minutes means no transcript or notes are created. Then the two settings that stop it returning, the recording rules that outrank them, and what you can actually do about somebody else's bot.",
+    "Remove the Fireflies notetaker within three minutes and no transcript is created. The two settings that stop it returning, and someone else's bot.",
   alternates: {
     canonical: "/resources/stop-fireflies-from-joining-meetings",
   },

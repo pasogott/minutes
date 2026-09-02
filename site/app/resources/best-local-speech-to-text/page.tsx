@@ -5,9 +5,9 @@ import { resourceArticleSchema } from "@/lib/schema";
 import { RelatedResources } from "@/components/related-resources";
 
 export const metadata: Metadata = {
-  title: "The best local speech-to-text apps (2026)",
+  title: "Local speech to text: the best on-device apps (2026)",
   description:
-    "A fit-based guide to on-device transcription: MacWhisper, superwhisper, Buzz, Vibe, whisper.cpp, and Minutes — matched to the job you're actually hiring for, with a clear disclosure of which one is ours.",
+    "On-device transcription compared: MacWhisper, superwhisper, Buzz, Vibe, whisper.cpp, and Minutes, matched to the job, with our own disclosed.",
   alternates: {
     canonical: "/resources/best-local-speech-to-text",
   },
