@@ -28,22 +28,24 @@ If Homebrew reports an untrusted tap, run `brew trust silverstein/tap` once.
 
 ## Ask your agent
 
-Add Minutes to your agent, capture a conversation, then ask about it:
+Add Minutes to your agent, seed five sample meetings (no mic needed), then ask about them:
 
 ```bash
 claude mcp add minutes -- npx -y minutes-mcp
-minutes process demo.wav
+minutes demo --full
 ```
 
-> What did I promise Sarah?
+> What did we decide about monthly billing, and did it stick?
+
+The answer spans two meetings a month apart: launched on Feb 28, reversed on Mar 25.
 
 A direct MCP call uses the same local meeting files:
 
 ```text
-search_meetings({"query":"what did I promise Sarah?"})
+search_meetings({"query":"monthly billing decision"})
 ```
 
-Record live with `minutes record`, then stop and transcribe with `minutes stop`.
+Record a real one with `minutes record`, then `minutes stop` to transcribe. `minutes demo --clean` removes the samples.
 Setup: [Codex, Gemini CLI, and Claude Desktop](docs/integration/clients.md#any-mcp-client-claude-code-codex-opencode-gemini-cli-claude-desktop-or-your-own-agent),
 [Cursor](docs/integration/cursor-agent.md),
 [OpenCode](docs/integration/clients.md#opencode-cli),
@@ -58,10 +60,10 @@ Mistral Vibe · Cowork · Dispatch · Obsidian · Logseq · any MCP client
 
 ## How it compares
 
-| Feature | Granola | Otter.ai | Hyprnote | minutes |
+| Feature | Granola | Otter.ai | Anarlog (ex-Hyprnote) | minutes |
 |---|---|---|---|---|
 | Local transcription | No (cloud) | No (cloud) | Yes | Yes |
-| Open source | No | No | GPL-3.0 | MIT |
+| Open source | No | No | MIT | MIT |
 | Free | Freemium | Freemium | Free | Free |
 | Agent surface | Hosted MCP | Hosted integrations | Local app | Files + 34 MCP tools |
 | Cross-meeting intelligence | Cloud chat | Cloud chat | No | Policy-safe search |
@@ -72,10 +74,9 @@ Mistral Vibe · Cowork · Dispatch · Obsidian · Logseq · any MCP client
 | Data ownership | Their servers | Their servers | Local | Local |
 | Data format | Cloud DB | Cloud DB | Local files | Markdown + YAML |
 | Agent-agnostic | No | No | Partially | Yes |
-| Speaker labels | — | — | — | Free, on-device |
-| Your files | — | — | Local files | Markdown on disk |
+| Speaker labels | Cloud | Cloud | Not verified | Free, on-device |
 
-Competitor cells follow public product documentation spot-checked in August 2026.
+Competitor cells follow public product documentation spot-checked in September 2026. Corrections welcome as issues.
 
 ## Who it's for
 
@@ -94,7 +95,7 @@ quality. See the full [persona notes](docs/personas.md).
 | Desktop app | Menu bar capture, Recall, documents, and Coach. | [Install](docs/install.md#desktop-app) |
 | CLI (58 commands) | Local recording, processing, search, import, and automation. | [Commands](docs/features.md) |
 | MCP server (34 tools) | Local meeting tools and resources for any MCP client. | [MCP reference](docs/integration/agent-integrations.md) |
-| Claude Code plugin (23 skills) | Prep, capture, live help, debrief, and memory workflows. | [Client setup](docs/integration/clients.md#claude-code-plugin) |
+| Claude Code plugin (22 skills) | Prep, capture, live help, debrief, and memory workflows. | [Client setup](docs/integration/clients.md#claude-code-plugin) |
 | SDK | TypeScript access to meeting files without MCP. | [Agent architecture](docs/architecture/README.md#building-your-own-agent-on-minutes) |
 
 ## Output format
@@ -151,7 +152,7 @@ See the [security documentation](docs/security/) and
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Minutes is MIT licensed and staying that way: no relicensing, no paid tier for anything in this repo.
 
 MIT — Built by [Mat Silverstein](https://github.com/silverstein), founder of
 [X1 Wealth](https://x1wealth.com).
