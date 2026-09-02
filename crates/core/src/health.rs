@@ -416,6 +416,7 @@ pub fn diarization_status(config: &Config) -> HealthItem {
 
     if is_pyannote_rs {
         let installed = crate::diarize::models_installed(config);
+        let model = crate::diarize::diarization_model_for_config(config);
         return HealthItem {
             label: "Speaker diarization".into(),
             state: if installed {
@@ -430,14 +431,20 @@ pub fn diarization_status(config: &Config) -> HealthItem {
             .into(),
             detail: if installed {
                 let mode = if is_auto { "auto-detected" } else { "enabled" };
-                format!("pyannote-rs models installed ({mode}). Meetings will identify speakers.",)
+                format!(
+                    "pyannote-rs model set '{}' installed ({mode}). Meetings will identify speakers.",
+                    model.name
+                )
             } else if is_auto {
-                "Models not downloaded — diarization will be skipped. \
-                 Run `minutes setup --diarization` to enable speaker identification (~34 MB)."
-                    .into()
+                format!(
+                    "Model set '{}' not downloaded — diarization will be skipped. Run `minutes setup --diarization --model {}` to enable speaker identification.",
+                    model.name, model.name
+                )
             } else {
-                "Models not downloaded. Run `minutes setup --diarization` to install (~34 MB)."
-                    .into()
+                format!(
+                    "Model set '{}' not downloaded. Run `minutes setup --diarization --model {}` to install it.",
+                    model.name, model.name
+                )
             },
             optional: true,
         };
@@ -750,6 +757,35 @@ mod tests {
                 item.state
             );
         }
+    }
+
+    #[test]
+    fn diarization_health_names_the_selected_model_set() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut config = Config::default();
+        config.diarization.engine = "pyannote-rs".into();
+        config.diarization.model = crate::diarize::DIARIZATION_MODEL_COMMUNITY_1.into();
+        config.diarization.model_path = temp.path().to_path_buf();
+
+        let missing = diarization_status(&config);
+        assert_eq!(missing.state, "attention");
+        assert!(missing.detail.contains("community-1"));
+        assert!(missing
+            .detail
+            .contains("setup --diarization --model community-1"));
+
+        std::fs::write(
+            temp.path()
+                .join(crate::diarize::COMMUNITY_1_SEGMENTATION_MODEL),
+            b"segmentation",
+        )
+        .unwrap();
+        std::fs::write(temp.path().join("embedding-community-1.onnx"), b"embedding").unwrap();
+        let installed = diarization_status(&config);
+        assert_eq!(installed.state, "ready");
+        assert!(installed
+            .detail
+            .contains("model set 'community-1' installed"));
     }
 
     #[test]

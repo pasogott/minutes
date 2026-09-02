@@ -159,9 +159,9 @@ where
 //   "pyannote"    → Python pyannote.audio subprocess (legacy)
 //   "none"        → Skip diarization (default)
 //
-// The pyannote-rs engine uses ONNX models (~34 MB total):
-//   - segmentation-3.0.onnx (speech segmentation)
-//   - voxceleb_CAM++_LM.onnx (speaker embeddings, large-margin fine-tuned)
+// The pyannote-rs engine supports two ONNX model sets:
+//   - legacy (default): segmentation-3.0 + CAM++
+//   - community-1 (opt-in): community-1 segmentation + WeSpeaker ResNet34
 //
 // Download with: minutes setup --diarization
 // ──────────────────────────────────────────────────────────────
@@ -497,33 +497,108 @@ fn is_non_lexical_event_text(text: &str) -> bool {
     trimmed.starts_with('[') && trimmed.ends_with(']')
 }
 
-/// Model filenames expected by pyannote-rs.
+pub const DIARIZATION_MODEL_LEGACY: &str = "legacy";
+pub const DIARIZATION_MODEL_COMMUNITY_1: &str = "community-1";
+pub const DIARIZATION_MODEL_NAMES: &[&str] =
+    &[DIARIZATION_MODEL_LEGACY, DIARIZATION_MODEL_COMMUNITY_1];
+
+/// Legacy model filenames expected by pyannote-rs.
 pub const SEGMENTATION_MODEL: &str = "segmentation-3.0.onnx";
 
 pub const SEGMENTATION_MODEL_URL: &str =
     "https://github.com/thewh1teagle/pyannote-rs/releases/download/v0.1.0/segmentation-3.0.onnx";
 
+pub const COMMUNITY_1_SEGMENTATION_MODEL: &str = "segmentation-community-1.onnx";
+pub const COMMUNITY_1_SEGMENTATION_MODEL_URL: &str =
+    "https://huggingface.co/altunenes/speaker-diarization-community-1-onnx/resolve/main/segmentation-community-1.onnx";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EmbeddingContract {
+    LegacyCamPlusPlus,
+    Community1ResNet34,
+}
+
 /// Descriptor for a speaker embedding ONNX model.
+#[cfg_attr(not(feature = "diarize"), allow(dead_code))]
 pub struct EmbeddingModelInfo {
     pub filename: &'static str,
     pub url: &'static str,
     pub version: &'static str,
+    input_name: &'static str,
+    output_name: &'static str,
+    contract: EmbeddingContract,
+}
+
+static CAM_PP: EmbeddingModelInfo = EmbeddingModelInfo {
+    filename: "wespeaker_en_voxceleb_CAM++.onnx",
+    url: "https://github.com/thewh1teagle/pyannote-rs/releases/download/v0.1.0/wespeaker_en_voxceleb_CAM++.onnx",
+    version: "wespeaker_en_voxceleb_CAM++_v0.3",
+    input_name: "feats",
+    output_name: "embs",
+    contract: EmbeddingContract::LegacyCamPlusPlus,
+};
+
+static CAM_PP_LM: EmbeddingModelInfo = EmbeddingModelInfo {
+    filename: "voxceleb_CAM++_LM.onnx",
+    url: "https://huggingface.co/Wespeaker/wespeaker-voxceleb-campplus-LM/resolve/main/voxceleb_CAM%2B%2B_LM.onnx",
+    version: "wespeaker_voxceleb_CAM++_LM_v0.3",
+    input_name: "feats",
+    output_name: "embs",
+    contract: EmbeddingContract::LegacyCamPlusPlus,
+};
+
+static COMMUNITY_1_RESNET34: EmbeddingModelInfo = EmbeddingModelInfo {
+    filename: "embedding-community-1.onnx",
+    url: "https://huggingface.co/altunenes/speaker-diarization-community-1-onnx/resolve/main/embedding_model.onnx",
+    version: "pyannote_community-1_wespeaker_resnet34_v1",
+    input_name: "fbank_features",
+    output_name: "embeddings",
+    contract: EmbeddingContract::Community1ResNet34,
+};
+
+/// Segmentation-side contract for one selectable diarization model set.
+#[cfg_attr(not(feature = "diarize"), allow(dead_code))]
+pub struct DiarizationModelInfo {
+    pub name: &'static str,
+    pub segmentation_filename: &'static str,
+    pub segmentation_url: &'static str,
+    segmentation_input_name: &'static str,
+    segmentation_output_name: &'static str,
+}
+
+static LEGACY_MODEL_SET: DiarizationModelInfo = DiarizationModelInfo {
+    name: DIARIZATION_MODEL_LEGACY,
+    segmentation_filename: SEGMENTATION_MODEL,
+    segmentation_url: SEGMENTATION_MODEL_URL,
+    segmentation_input_name: "input",
+    segmentation_output_name: "output",
+};
+
+static COMMUNITY_1_MODEL_SET: DiarizationModelInfo = DiarizationModelInfo {
+    name: DIARIZATION_MODEL_COMMUNITY_1,
+    segmentation_filename: COMMUNITY_1_SEGMENTATION_MODEL,
+    segmentation_url: COMMUNITY_1_SEGMENTATION_MODEL_URL,
+    segmentation_input_name: "input_values",
+    segmentation_output_name: "logits",
+};
+
+pub fn diarization_model_info(name: &str) -> Option<&'static DiarizationModelInfo> {
+    match name {
+        DIARIZATION_MODEL_LEGACY => Some(&LEGACY_MODEL_SET),
+        DIARIZATION_MODEL_COMMUNITY_1 => Some(&COMMUNITY_1_MODEL_SET),
+        _ => None,
+    }
+}
+
+/// Resolve config while preserving the historical model set for absent or
+/// unrecognized values.
+pub fn diarization_model_for_config(config: &Config) -> &'static DiarizationModelInfo {
+    diarization_model_info(&config.diarization.model).unwrap_or(&LEGACY_MODEL_SET)
 }
 
 /// Resolve the configured embedding model name to its ONNX file, download URL,
 /// and version tag stored alongside voice profiles.
 pub fn embedding_model_info(name: &str) -> Option<&'static EmbeddingModelInfo> {
-    static CAM_PP: EmbeddingModelInfo = EmbeddingModelInfo {
-        filename: "wespeaker_en_voxceleb_CAM++.onnx",
-        url: "https://github.com/thewh1teagle/pyannote-rs/releases/download/v0.1.0/wespeaker_en_voxceleb_CAM++.onnx",
-        version: "wespeaker_en_voxceleb_CAM++_v0.3",
-    };
-    static CAM_PP_LM: EmbeddingModelInfo = EmbeddingModelInfo {
-        filename: "voxceleb_CAM++_LM.onnx",
-        url: "https://huggingface.co/Wespeaker/wespeaker-voxceleb-campplus-LM/resolve/main/voxceleb_CAM%2B%2B_LM.onnx",
-        version: "wespeaker_voxceleb_CAM++_LM_v0.3",
-    };
-
     match name {
         "cam++" => Some(&CAM_PP),
         "cam++-lm" => Some(&CAM_PP_LM),
@@ -536,8 +611,25 @@ pub const EMBEDDING_MODEL_NAMES: &[&str] = &["cam++", "cam++-lm"];
 
 /// Resolve from config, falling back to the default (cam++).
 pub fn embedding_model_for_config(config: &Config) -> &'static EmbeddingModelInfo {
+    if diarization_model_for_config(config).name == DIARIZATION_MODEL_COMMUNITY_1 {
+        return &COMMUNITY_1_RESNET34;
+    }
     embedding_model_info(&config.diarization.embedding_model)
         .unwrap_or_else(|| embedding_model_info("cam++").unwrap())
+}
+
+#[cfg(feature = "diarize")]
+fn community_embedding_features(
+    samples: &[i16],
+) -> Result<ndarray::Array3<f32>, Box<dyn std::error::Error>> {
+    use ndarray::Axis;
+
+    let mut samples_f32 = zeroize::Zeroizing::new(vec![0.0; samples.len()]);
+    knf_rs::convert_integer_to_float_audio(samples, &mut samples_f32);
+    for sample in samples_f32.iter_mut() {
+        *sample *= 32768.0;
+    }
+    Ok(knf_rs::compute_fbank(&samples_f32)?.insert_axis(Axis(0)))
 }
 
 /// Compute raw speaker embeddings for pre-normalized 16 kHz PCM windows.
@@ -550,8 +642,6 @@ pub fn extract_speaker_embeddings(
     windows: &[Vec<i16>],
     config: &Config,
 ) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> {
-    use pyannote_rs::EmbeddingExtractor;
-
     let info = embedding_model_for_config(config);
     let model_path = config.diarization.model_path.join(info.filename);
     if !model_path.exists() {
@@ -561,18 +651,47 @@ pub fn extract_speaker_embeddings(
         )
         .into());
     }
-    let mut extractor = EmbeddingExtractor::new(&model_path)?;
-    windows
-        .iter()
-        .map(|window| Ok(extractor.compute(window)?.collect()))
-        .collect()
+    match info.contract {
+        EmbeddingContract::LegacyCamPlusPlus => {
+            use pyannote_rs::EmbeddingExtractor;
+            let mut extractor = EmbeddingExtractor::new(&model_path)?;
+            windows
+                .iter()
+                .map(|window| Ok(extractor.compute(window)?.collect()))
+                .collect()
+        }
+        EmbeddingContract::Community1ResNet34 => {
+            use ort::session::builder::GraphOptimizationLevel;
+            use ort::value::Tensor;
+
+            let mut session = ort::session::Session::builder()?
+                .with_optimization_level(GraphOptimizationLevel::Level3)?
+                .with_intra_threads(1)?
+                .with_inter_threads(1)?
+                .commit_from_file(&model_path)?;
+            validate_embedding_contract(&session, info)?;
+            windows
+                .iter()
+                .map(|window| {
+                    let features = community_embedding_features(window)?;
+                    let outputs = session.run(ort::inputs![Tensor::from_array(features)?])?;
+                    let embedding = outputs
+                        .get(info.output_name)
+                        .ok_or("embedding model output is missing")?
+                        .try_extract_tensor::<f32>()?;
+                    Ok(embedding.1.to_vec())
+                })
+                .collect()
+        }
+    }
 }
 
 /// Check if diarization models are installed.
 pub fn models_installed(config: &Config) -> bool {
     let dir = &config.diarization.model_path;
+    let model = diarization_model_for_config(config);
     let emb = embedding_model_for_config(config);
-    dir.join(SEGMENTATION_MODEL).exists() && dir.join(emb.filename).exists()
+    dir.join(model.segmentation_filename).exists() && dir.join(emb.filename).exists()
 }
 
 /// Pre-process audio to 16kHz mono PCM via ffmpeg (if available).
@@ -3223,18 +3342,23 @@ impl Drop for OrtInferenceDeadline {
 #[cfg(feature = "diarize")]
 struct BoundedEmbeddingExtractor {
     session: ort::session::Session,
+    info: &'static EmbeddingModelInfo,
 }
 
 #[cfg(feature = "diarize")]
 impl BoundedEmbeddingExtractor {
-    fn new(model_path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+    fn new(
+        model_path: &Path,
+        info: &'static EmbeddingModelInfo,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         use ort::session::builder::GraphOptimizationLevel;
         let session = ort::session::Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_intra_threads(1)?
             .with_inter_threads(1)?
             .commit_from_file(model_path)?;
-        Ok(Self { session })
+        validate_embedding_contract(&session, info)?;
+        Ok(Self { session, info })
     }
 
     fn compute(
@@ -3247,17 +3371,59 @@ impl BoundedEmbeddingExtractor {
 
         let mut samples_f32 = zeroize::Zeroizing::new(vec![0.0_f32; samples.len()]);
         knf_rs::convert_integer_to_float_audio(samples, &mut samples_f32);
+        if self.info.contract == EmbeddingContract::Community1ResNet34 {
+            for sample in samples_f32.iter_mut() {
+                *sample *= 32768.0;
+            }
+        }
         let features = knf_rs::compute_fbank(&samples_f32)?.insert_axis(Axis(0));
-        let outputs = self.session.run_with_options(
-            ort::inputs!["feats" => Tensor::from_array(features)?],
-            options,
-        )?;
+        let outputs = match self.info.contract {
+            EmbeddingContract::LegacyCamPlusPlus => self.session.run_with_options(
+                ort::inputs!["feats" => Tensor::from_array(features)?],
+                options,
+            )?,
+            EmbeddingContract::Community1ResNet34 => self.session.run_with_options(
+                ort::inputs!["fbank_features" => Tensor::from_array(features)?],
+                options,
+            )?,
+        };
         let embedding = outputs
-            .get("embs")
+            .get(self.info.output_name)
             .ok_or("embedding model output is missing")?
             .try_extract_tensor::<f32>()?;
         Ok(embedding.1.to_vec())
     }
+}
+
+#[cfg(feature = "diarize")]
+fn validate_embedding_contract(
+    session: &ort::session::Session,
+    info: &EmbeddingModelInfo,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let actual_input = session
+        .inputs
+        .first()
+        .map(|input| input.name.as_str())
+        .ok_or("embedding model has no input")?;
+    if actual_input != info.input_name {
+        return Err(format!(
+            "embedding model input mismatch: expected '{}', found '{}'",
+            info.input_name, actual_input
+        )
+        .into());
+    }
+    if !session
+        .outputs
+        .iter()
+        .any(|output| output.name == info.output_name)
+    {
+        return Err(format!(
+            "embedding model output mismatch: expected '{}'",
+            info.output_name
+        )
+        .into());
+    }
+    Ok(())
 }
 
 #[cfg(feature = "diarize")]
@@ -3268,7 +3434,8 @@ fn diarize_with_pyannote_rs(
 ) -> Result<DiarizationResult, Box<dyn std::error::Error>> {
     cancellation.check()?;
     let model_dir = &config.diarization.model_path;
-    let seg_model = model_dir.join(SEGMENTATION_MODEL);
+    let model_info = diarization_model_for_config(config);
+    let seg_model = model_dir.join(model_info.segmentation_filename);
     let emb_info = embedding_model_for_config(config);
     let emb_model = model_dir.join(emb_info.filename);
 
@@ -3306,6 +3473,7 @@ fn diarize_with_pyannote_rs(
         &f32_samples,
         sample_rate,
         &seg_model,
+        model_info,
         inference_deadline.options(),
     )?;
 
@@ -3331,6 +3499,7 @@ fn diarize_with_pyannote_rs(
                 &f32_samples,
                 sample_rate,
                 &seg_model,
+                model_info,
                 inference_deadline.options(),
             )?;
         }
@@ -3348,7 +3517,7 @@ fn diarize_with_pyannote_rs(
     // only stores the first segment's embedding per speaker, which causes
     // over-segmentation (one person → multiple speakers) as the reference
     // embedding becomes unrepresentative over time.
-    let mut extractor = BoundedEmbeddingExtractor::new(&emb_model)?;
+    let mut extractor = BoundedEmbeddingExtractor::new(&emb_model, emb_info)?;
     let threshold = config.diarization.threshold;
 
     // Merge adjacent speech segments that are separated by short gaps.
@@ -3720,6 +3889,7 @@ fn segment_speech(
     samples: &[f32],
     sample_rate: u32,
     model_path: &Path,
+    model_info: &DiarizationModelInfo,
     run_options: &ort::session::run_options::RunOptions,
 ) -> Result<Vec<SpeechSegment>, Box<dyn std::error::Error>> {
     use ndarray::{Array1, ArrayViewD, Axis, IxDyn};
@@ -3731,6 +3901,30 @@ fn segment_speech(
         .with_intra_threads(1)?
         .with_inter_threads(1)?
         .commit_from_file(model_path)?;
+
+    let actual_input = session
+        .inputs
+        .first()
+        .map(|input| input.name.as_str())
+        .ok_or("segmentation model has no input")?;
+    if actual_input != model_info.segmentation_input_name {
+        return Err(format!(
+            "segmentation model input mismatch: expected '{}', found '{}'",
+            model_info.segmentation_input_name, actual_input
+        )
+        .into());
+    }
+    if !session
+        .outputs
+        .iter()
+        .any(|output| output.name == model_info.segmentation_output_name)
+    {
+        return Err(format!(
+            "segmentation model output mismatch: expected '{}'",
+            model_info.segmentation_output_name
+        )
+        .into());
+    }
 
     // These constants come from the pyannote segmentation-3.0 model architecture:
     // - frame_size (270 samples @ 16kHz = 16.875ms) is the hop between output frames,
@@ -3770,8 +3964,8 @@ fn segment_speech(
 
         let ort_outs = session.run_with_options(inputs, run_options)?;
         let ort_out = ort_outs
-            .get("output")
-            .ok_or("segmentation model missing 'output' tensor")?;
+            .get(model_info.segmentation_output_name)
+            .ok_or("segmentation model output tensor is missing")?;
         let ort_out = ort_out
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("tensor extract: {e:?}"))?;
@@ -5681,6 +5875,67 @@ mod tests {
     }
 
     #[test]
+    fn legacy_remains_the_default_model_set() {
+        let config = Config::default();
+        let model = diarization_model_for_config(&config);
+        let embedding = embedding_model_for_config(&config);
+
+        assert_eq!(config.diarization.model, DIARIZATION_MODEL_LEGACY);
+        assert_eq!(model.name, DIARIZATION_MODEL_LEGACY);
+        assert_eq!(model.segmentation_filename, SEGMENTATION_MODEL);
+        assert_eq!(embedding.filename, "wespeaker_en_voxceleb_CAM++.onnx");
+        assert_eq!(
+            crate::voice::model_version(&config),
+            "wespeaker_en_voxceleb_CAM++_v0.3"
+        );
+    }
+
+    #[test]
+    fn community_model_set_selects_compatible_pair_and_voice_model_id() {
+        let mut config = Config::default();
+        config.diarization.model = DIARIZATION_MODEL_COMMUNITY_1.into();
+        config.diarization.embedding_model = "cam++-lm".into();
+
+        let model = diarization_model_for_config(&config);
+        let embedding = embedding_model_for_config(&config);
+        assert_eq!(model.segmentation_filename, COMMUNITY_1_SEGMENTATION_MODEL);
+        assert_eq!(embedding.filename, "embedding-community-1.onnx");
+        assert_eq!(
+            crate::voice::model_version(&config),
+            "pyannote_community-1_wespeaker_resnet34_v1"
+        );
+    }
+
+    #[test]
+    fn models_installed_checks_only_the_selected_pair() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(SEGMENTATION_MODEL), b"legacy-seg").unwrap();
+        std::fs::write(
+            dir.path().join("wespeaker_en_voxceleb_CAM++.onnx"),
+            b"legacy-embedding",
+        )
+        .unwrap();
+
+        let mut config = Config::default();
+        config.diarization.model_path = dir.path().to_path_buf();
+        assert!(models_installed(&config));
+
+        config.diarization.model = DIARIZATION_MODEL_COMMUNITY_1.into();
+        assert!(!models_installed(&config));
+        std::fs::write(
+            dir.path().join(COMMUNITY_1_SEGMENTATION_MODEL),
+            b"community-seg",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("embedding-community-1.onnx"),
+            b"community-embedding",
+        )
+        .unwrap();
+        assert!(models_installed(&config));
+    }
+
+    #[test]
     fn discover_stem_plan_prefers_full_stems_when_both_are_present() {
         let dir = tempfile::tempdir().unwrap();
         let audio = dir.path().join("call.mov");
@@ -6326,7 +6581,7 @@ mod tests {
         assert_ne!(samples.len() % (sample_rate as usize * 10), 0);
 
         let options = ort::session::RunOptions::new().expect("run options");
-        let segments = segment_speech(&samples, sample_rate, &model, &options)
+        let segments = segment_speech(&samples, sample_rate, &model, &LEGACY_MODEL_SET, &options)
             .expect("segmentation must not panic or fail on a partial final window");
         // The assertion that matters is that we got here at all; the panic
         // previously escaped into catch_unwind and yielded zero speakers.

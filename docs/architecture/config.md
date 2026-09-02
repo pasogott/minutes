@@ -44,8 +44,12 @@ changing `transcription.model`.
 | key | default | meaning |
 |---|---|---|
 | `engine` | `"none"` | `"none"` or `"pyannote-rs"` |
+| `model` | `"legacy"` | `"legacy"` (segmentation-3.0 + CAM++) or opt-in `"community-1"` |
 | `threshold` | `0.4` | Cosine similarity cutoff; lower merges more aggressively |
-| `embedding_model` | `"cam++"` | `"cam++"` or `"cam++-lm"` (lower EER, lower similarities) |
+| `embedding_model` | `"cam++"` | Legacy-only override: `"cam++"` or `"cam++-lm"` (lower EER, lower similarities) |
+
+See [Diarization model sets](diarization.md) for installation, licensing, and
+the compatibility boundary with saved voice profiles.
 
 ### `[summarization]` — post-record summaries
 

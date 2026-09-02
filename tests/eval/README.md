@@ -1,5 +1,20 @@
 # Minutes Eval v0.1
 
+## Diarization model-set comparison
+
+The diarization eval uses repository-owned one-speaker audio with a small
+hand-authored reference. It reports zero-collar, overlap-scored 10 ms DER,
+speaker-count accuracy, and segment-boundary mean absolute error. It is a
+boundary/count regression corpus, not a multi-speaker quality benchmark.
+
+```bash
+./scripts/run_diarization_eval.sh --model legacy
+./scripts/run_diarization_eval.sh --model community-1
+```
+
+The script downloads the selected ONNX model set when it is not installed;
+model binaries are not committed to the repository.
+
 Can an AI agent actually answer real questions about your meetings?
 
 Cloud meeting tools cap cross-meeting chat at somewhere between one meeting (Fireflies' Fred) and twenty-five (Granola). Nobody publishes a head-to-head on whether agents can synthesize across real meeting corpora. v0.1 is a starter shot at that gap.
