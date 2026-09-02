@@ -12,6 +12,15 @@ const llmsPath = join(repoRoot, "site", "public", "llms.txt");
 const llmsFullPath = join(repoRoot, "site", "public", "llms-full.txt");
 const productSurfacesPath = join(repoRoot, "site", "lib", "product-surfaces.json");
 const skillsCatalogPath = join(repoRoot, "site", "lib", "skills-catalog.json");
+const mcpRecallToolMapPath = join(
+  repoRoot,
+  "tooling",
+  "skills",
+  "sources",
+  "minutes-mcp-recall",
+  "references",
+  "tool-map.md"
+);
 const forAgentsBaseUrl = "https://useminutes.app/for-agents";
 const mcpToolsMarkdownPath = join(repoRoot, "site", "public", "docs", "mcp", "tools.md");
 const mcpToolsDataPath = join(repoRoot, "site", "app", "docs", "mcp", "tools", "data.json");
@@ -698,6 +707,27 @@ function buildMcpToolsData({ manifest, resources }) {
   );
 }
 
+function buildMcpRecallToolMap({ manifest }) {
+  const rows = manifest.tools
+    .map(
+      (tool) =>
+        `| \`${tool.name}\` | ${tool.description.replaceAll("|", "\\|")} |`
+    )
+    .join("\n");
+
+  return `# Minutes MCP tool map
+
+> Generated from \`manifest.json\` by \`node scripts/generate_llms_txt.mjs\`.
+> Do not edit by hand.
+
+This manifest contains ${manifest.tools.length} MCP tools.
+
+| Tool | Description |
+|---|---|
+${rows}
+`;
+}
+
 async function main() {
   const checkMode = process.argv.includes("--check");
 
@@ -759,6 +789,7 @@ async function main() {
   const nextFull = buildLlmsFull({ manifest, resources, surfaces, skillsCatalog });
   const nextMcpToolsMarkdown = buildMcpToolsMarkdown({ manifest, resources });
   const nextMcpToolsData = buildMcpToolsData({ manifest, resources });
+  const nextMcpRecallToolMap = buildMcpRecallToolMap({ manifest });
   const nextErrorsMarkdown = buildErrorsMarkdown(errorEntries);
   const nextErrorsData = buildErrorsData(errorEntries);
 
@@ -783,6 +814,8 @@ async function main() {
       staleFiles.push(mcpToolsMarkdownPath);
     if (await compare(mcpToolsDataPath, nextMcpToolsData))
       staleFiles.push(mcpToolsDataPath);
+    if (await compare(mcpRecallToolMapPath, nextMcpRecallToolMap))
+      staleFiles.push(mcpRecallToolMapPath);
     if (await compare(errorsMarkdownPath, nextErrorsMarkdown))
       staleFiles.push(errorsMarkdownPath);
     if (await compare(errorsDataPath, nextErrorsData))
@@ -804,6 +837,7 @@ async function main() {
   await mkdir(dirname(llmsFullPath), { recursive: true });
   await mkdir(dirname(mcpToolsMarkdownPath), { recursive: true });
   await mkdir(dirname(mcpToolsDataPath), { recursive: true });
+  await mkdir(dirname(mcpRecallToolMapPath), { recursive: true });
   await mkdir(dirname(errorsMarkdownPath), { recursive: true });
   await mkdir(dirname(errorsDataPath), { recursive: true });
 
@@ -811,6 +845,7 @@ async function main() {
   await writeFile(llmsFullPath, nextFull, "utf8");
   await writeFile(mcpToolsMarkdownPath, nextMcpToolsMarkdown, "utf8");
   await writeFile(mcpToolsDataPath, nextMcpToolsData, "utf8");
+  await writeFile(mcpRecallToolMapPath, nextMcpRecallToolMap, "utf8");
   await writeFile(errorsMarkdownPath, nextErrorsMarkdown, "utf8");
   await writeFile(errorsDataPath, nextErrorsData, "utf8");
   console.log(`Updated ${llmsPath}`);

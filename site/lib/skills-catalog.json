@@ -343,6 +343,26 @@
     "userInvocable": true
   },
   {
+    "name": "minutes-mcp-recall",
+    "displayName": "Minutes MCP Recall",
+    "category": "Search",
+    "shortDescription": "Route meeting-recall questions to the right Minutes MCP tool.",
+    "description": "Route meeting-recall questions to the right Minutes MCP tool.",
+    "bestFor": "Route a meeting-memory question to the smallest useful read-only MCP tool.",
+    "example": "/minutes-mcp-recall what did we discuss about pricing?",
+    "triggers": [
+      "what did we say about",
+      "find that meeting about",
+      "get the full transcript",
+      "what do I still owe",
+      "who owes me",
+      "what is my history with",
+      "research across my meetings"
+    ],
+    "phase": null,
+    "userInvocable": true
+  },
+  {
     "name": "minutes-search",
     "displayName": "Minutes Search",
     "category": "Search",
