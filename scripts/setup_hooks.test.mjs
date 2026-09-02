@@ -124,6 +124,10 @@ async function makeVersionRepo(t) {
     version: mainVersion,
   });
   await writeJson(root, "manifest.json", { version: mainVersion });
+  await writeJson(root, "server.json", {
+    version: mainVersion,
+    packages: [{ registryType: "npm", identifier: "minutes-mcp", version: mainVersion }],
+  });
   await writeJson(root, "manifest.mcpb.json", { version: mainVersion });
   await writeFixture(
     root,
