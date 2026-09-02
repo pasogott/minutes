@@ -17,6 +17,22 @@ claude plugin install minutes@minutes
 The plugin starts `npx -y minutes-mcp` automatically, so its Minutes tools are
 available without a separate MCP configuration.
 
+## MCP server CLI auto-install
+
+When an MCP host starts `minutes-mcp` without a compatible Minutes CLI, the
+server installs a checksum-verified release asset. On Apple Silicon (including
+Node running under Rosetta), it selects `minutes-macos-arm64-sherpa.tar.gz`,
+which contains the CLI and its Developer ID-signed sherpa plugin. The server
+extracts into a temporary directory, confirms the staged CLI runs, and then
+atomically replaces the installed binary and plugin. Releases from before the
+archive existed fall back to the checksum-verified bare macOS binary and log
+that Parakeet is unavailable.
+
+After installation, a default `engine = "auto"` health check that finds the
+plugin but no Parakeet model triggers plain `minutes setup`. That installs the
+Parakeet model and the Whisper tiny fallback without changing explicit engine
+choices.
+
 ## Surfaces
 
 | Surface | Use when | Examples |

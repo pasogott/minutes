@@ -94,6 +94,8 @@ import {
 import {
   downloadReleaseBinaryWithChecksum,
   extractZipWithPowerShell,
+  installMacSherpaArchiveWithFallback,
+  MACOS_SHERPA_ARCHIVE,
 } from "./autoInstall.js";
 import {
   attachCaptureRelay,
@@ -2275,13 +2277,14 @@ const runCapabilityRepair = createCapabilityRepairCoordinator(
   () => tryAutoInstallAttempt(true)
 );
 
-function getReleaseBinaryName(): string | null {
-  const platform = process.platform;
-  const arch = process.arch;
-  if (platform === "darwin" && arch === "arm64") return "minutes-macos-arm64";
-  if (platform === "darwin" && arch === "x64") return "minutes-macos-arm64"; // Rosetta handles it
+export function getReleaseBinaryName(
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch
+): string | null {
+  if (platform === "darwin" && arch === "arm64") return MACOS_SHERPA_ARCHIVE;
+  if (platform === "darwin" && arch === "x64") return MACOS_SHERPA_ARCHIVE; // Rosetta runs arm64 CLI
   if (platform === "linux" && arch === "x64") return "minutes-linux-x64";
-  if (platform === "win32" && arch === "x64") return "minutes-windows-x64.exe";
+  if (platform === "win32" && arch === "x64") return "minutes-windows-x64.zip";
   return null;
 }
 
@@ -2323,7 +2326,23 @@ async function tryAutoInstallAttempt(capabilityRepair: boolean = false): Promise
       // Ensure install directory exists
       await mkdir(installDir, { recursive: true });
 
-      if (isWindows) {
+      if (binaryName === MACOS_SHERPA_ARCHIVE) {
+        console.error(
+          `[Minutes] Selected ${MACOS_SHERPA_ARCHIVE}: Apple Silicon auto-install ` +
+            "includes the Parakeet plugin beside the CLI"
+        );
+        const result = await installMacSherpaArchiveWithFallback({
+          installDir,
+          execFileAsync,
+          log: (message) => console.error(message),
+        });
+        if (!result.usedFallback) {
+          console.error(
+            `[Minutes] Verified ${result.assetName}, validated its CLI with --version, ` +
+              "and atomically installed the binary + sherpa plugin"
+          );
+        }
+      } else if (isWindows) {
         // The Windows binary imports the MSVC runtime (VCRUNTIME140.dll,
         // MSVCP140.dll and friends), which is not part of Windows. On a PC
         // that has never had the Visual C++ Redistributable, the bare .exe
@@ -2334,11 +2353,12 @@ async function tryAutoInstallAttempt(capabilityRepair: boolean = false): Promise
         // resolves the application's own directory ahead of the system path,
         // so extracting them next to the executable is sufficient and needs no
         // installer and no admin rights. Verified on a clean Windows 11 VM.
-        const archiveName = "minutes-windows-x64.zip";
-        const archivePath = join(installDir, archiveName);
-        console.error(`[Minutes] Downloading ${archiveName} from latest release...`);
+        const archivePath = join(installDir, binaryName);
+        console.error(
+          `[Minutes] Selected ${binaryName}: Windows needs the bundled MSVC runtime DLLs`
+        );
         await downloadReleaseBinaryWithChecksum({
-          binaryName: archiveName,
+          binaryName,
           targetPath: archivePath,
           execFileAsync,
         });
@@ -2353,7 +2373,9 @@ async function tryAutoInstallAttempt(capabilityRepair: boolean = false): Promise
         // layout would report success while MINUTES_BIN points at nothing.
         await stat(targetPath);
       } else {
-        console.error(`[Minutes] Downloading ${binaryName} from latest release...`);
+        console.error(
+          `[Minutes] Selected ${binaryName}: this platform uses the standalone CLI asset`
+        );
         // Download with curl, verify SHA256SUMS.txt, then move the verified
         // binary into place.
         await downloadReleaseBinaryWithChecksum({
@@ -2462,6 +2484,7 @@ export type HealthOutput = {
   items: HealthItem[] | null;
   engine?: string;
   effectiveEngine?: string;
+  reason?: string;
   model?: string;
 };
 
@@ -2510,6 +2533,7 @@ export function parseHealthOutput(stdout: string): HealthOutput {
     ...(typeof dataRecord.effective_engine === "string"
       ? { effectiveEngine: dataRecord.effective_engine }
       : {}),
+    ...(typeof dataRecord.reason === "string" ? { reason: dataRecord.reason } : {}),
     ...(typeof dataRecord.model === "string" ? { model: dataRecord.model } : {}),
   };
 }
@@ -2531,7 +2555,7 @@ export type EnsureWhisperModelOptions = {
   checkState?: WhisperModelCheckState;
   health?: () => Promise<string>;
   configFileExists?: () => Promise<boolean>;
-  setup?: (model: string) => Promise<void>;
+  setup?: (model?: string) => Promise<void>;
   log?: (message: string) => void;
 };
 
@@ -2551,8 +2575,9 @@ export async function ensureWhisperModel(
     });
     return stdout;
   });
-  const setup = options.setup ?? (async (model: string) => {
-    await execFileAsync(MINUTES_BIN, ["setup", "--model", model], {
+  const setup = options.setup ?? (async (model?: string) => {
+    const args = model === undefined ? ["setup"] : ["setup", "--model", model];
+    await execFileAsync(MINUTES_BIN, args, {
       timeout: 300000,
       env: mcpCliChildEnv(),
     });
@@ -2572,6 +2597,22 @@ export async function ensureWhisperModel(
 
   if (!healthOutput.ok || healthOutput.items === null) {
     log("[Minutes] Unrecognized health --json output — skipping Whisper auto-setup");
+    return;
+  }
+
+  const parakeetModelMissing =
+    healthOutput.engine?.toLowerCase() === "auto" &&
+    healthOutput.effectiveEngine?.toLowerCase() === "whisper" &&
+    healthOutput.reason === "whisper: parakeet model missing — run minutes setup";
+  if (parakeetModelMissing) {
+    log("[Minutes] Auto found the sherpa plugin but Parakeet is missing — running minutes setup...");
+    try {
+      await setup();
+      log("[Minutes] ✓ Parakeet and Whisper fallback models downloaded — recording is ready");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log(`[Minutes] Model download failed: ${message}. Run manually: minutes setup`);
+    }
     return;
   }
 

@@ -14,14 +14,16 @@ sherpa requests still fall back to Whisper so a recording never breaks.
 ## Which install gets Parakeet by default
 
 - The signed desktop app does: the plugin is bundled and signed inside the app.
-- `minutes-macos-arm64-sherpa.tar.gz` does: keep the plugin beside the binary.
+- `minutes-macos-arm64-sherpa.tar.gz` does: keep its Developer ID-signed plugin
+  beside the binary.
 - The bare `minutes-macos-arm64` asset, `cargo install`, and the Homebrew CLI
   formula do not. They use Whisper until a compatible plugin is placed in a
   loader search path.
 
-The MCP server's auto-install currently downloads the bare macOS binary, so
-agent-driven installs stay on Whisper for now. A follow-up will switch that
-installer to the sherpa archive.
+The MCP server's Apple Silicon auto-install downloads and checksum-verifies the
+sherpa archive, verifies the staged CLI with `--version`, and then atomically
+replaces the binary and plugin. It falls back to the bare binary for older
+releases that do not publish the archive.
 
 ## Quick Start (recommended)
 

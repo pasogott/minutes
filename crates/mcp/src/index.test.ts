@@ -53,6 +53,7 @@ import {
   enrichWithFrontmatter,
   extractMarkdownSection,
   getEffectiveMeetingsDir,
+  getReleaseBinaryName,
   handleMcpProcessAudioRequest,
   historicalCommitmentRows,
   isActiveCorpusMeetingPath,
@@ -206,8 +207,8 @@ describe("Whisper model auto-setup", () => {
   async function runModelCheck(input: {
     health: unknown;
     configExists?: boolean;
-  }): Promise<{ setups: string[]; logs: string[] }> {
-    const setups: string[] = [];
+  }): Promise<{ setups: Array<string | undefined>; logs: string[] }> {
+    const setups: Array<string | undefined> = [];
     const logs: string[] = [];
     await ensureWhisperModel({
       checkState: { done: false },
@@ -238,6 +239,7 @@ describe("Whisper model auto-setup", () => {
           data: {
             engine: "parakeet",
             effective_engine: "whisper",
+            reason: "whisper: configured engine unavailable",
             model: "small",
             items: [missingItem],
           },
@@ -248,6 +250,7 @@ describe("Whisper model auto-setup", () => {
       items: [missingItem],
       engine: "parakeet",
       effectiveEngine: "whisper",
+      reason: "whisper: configured engine unavailable",
       model: "small",
     });
   });
@@ -355,6 +358,41 @@ describe("Whisper model auto-setup", () => {
     );
   });
 
+  it("runs plain setup when auto has the plugin but the Parakeet model is missing", async () => {
+    const result = await runModelCheck({
+      health: {
+        ok: true,
+        data: {
+          engine: "auto",
+          effective_engine: "whisper",
+          reason: "whisper: parakeet model missing — run minutes setup",
+          model: "small",
+          items: [readyItem],
+        },
+      },
+    });
+
+    expect(result.setups).toEqual([undefined]);
+    expect(result.logs.join("\n")).toContain("running minutes setup");
+  });
+
+  it("keeps explicit Whisper on the model-specific setup path for the same reason text", async () => {
+    const result = await runModelCheck({
+      health: {
+        ok: true,
+        data: {
+          engine: "whisper",
+          effective_engine: "whisper",
+          reason: "whisper: parakeet model missing — run minutes setup",
+          model: "medium",
+          items: [missingItem],
+        },
+      },
+    });
+
+    expect(result.setups).toEqual(["medium"]);
+  });
+
   it("conservatively skips an old CLI non-Whisper engine with upgrade guidance", async () => {
     const result = await runModelCheck({
       health: { ok: true, data: { engine: "parakeet", items: [missingItem] } },
@@ -408,6 +446,18 @@ describe("Whisper model auto-setup", () => {
     });
 
     expect(result.setups).toEqual(["tiny"]);
+  });
+});
+
+describe("release asset selection", () => {
+  it.each([
+    ["darwin", "arm64", "minutes-macos-arm64-sherpa.tar.gz"],
+    ["darwin", "x64", "minutes-macos-arm64-sherpa.tar.gz"],
+    ["linux", "x64", "minutes-linux-x64"],
+    ["win32", "x64", "minutes-windows-x64.zip"],
+    ["linux", "arm64", null],
+  ] as const)("selects %s/%s", (platform, arch, expected) => {
+    expect(getReleaseBinaryName(platform, arch)).toBe(expected);
   });
 });
 
