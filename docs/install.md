@@ -18,14 +18,18 @@ cargo install --path crates/cli
 #### Which install gets Parakeet by default
 
 - The signed desktop app does: its sherpa plugin is bundled and signed.
-- `minutes-macos-arm64-sherpa.tar.gz` does: its plugin sits beside the binary.
+- `minutes-macos-arm64-sherpa.tar.gz` does: its Developer ID-signed plugin sits
+  beside the binary.
 - The bare `minutes-macos-arm64` asset, `cargo install`, and the Homebrew CLI
   formula do not. Those installs use Whisper until the plugin is placed beside
   the binary or in another documented loader path.
 
-The MCP server's auto-install currently fetches the bare binary, so
-agent-driven installs stay on Whisper for now. A follow-up will move that path
-to the sherpa archive.
+On Apple Silicon, the MCP server's auto-install fetches and checksum-verifies
+the sherpa archive, validates the extracted CLI, then atomically installs the
+binary and plugin together. Older releases without the archive fall back to the
+checksum-verified bare binary and stay on Whisper. When `auto` sees the plugin
+but the Parakeet model is missing, the MCP server runs plain `minutes setup`,
+which installs Parakeet plus the Whisper tiny fallback.
 
 ### Windows
 

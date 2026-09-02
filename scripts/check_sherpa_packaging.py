@@ -232,6 +232,23 @@ def check(workflow_text: str) -> list[str]:
             f"the macOS sherpa archive must run {LOADER} against its packaged dylib"
         )
 
+    mac_sign = re.search(
+        r"codesign\s+--force\s+--options\s+runtime\s+--timestamp[\s\S]*?"
+        r"\$out/libminutes_sherpa\.dylib",
+        mac_live,
+    )
+    if not mac_sign:
+        failures.append(
+            "the macOS sherpa archive must Developer ID-sign its packaged dylib "
+            "with the hardened runtime and timestamp"
+        )
+    else:
+        loader_position = mac_live.find(LOADER)
+        if loader_position != -1 and loader_position < mac_sign.end():
+            failures.append(
+                f"{LOADER} must run after the packaged macOS dylib is signed"
+            )
+
     return failures
 
 
@@ -263,6 +280,10 @@ MUTATIONS: list[tuple[str, object]] = [
         "features: parakeet,metal,engine-sherpa", "features: parakeet,metal")),
     ("deletes the macOS plugin copy", lambda s: s.replace(
         '          cp -f "$plugin" "$out/"\n', "")),
+    ("deletes macOS plugin signing", lambda s: s.replace(
+        '            codesign --force --options runtime --timestamp \\\n'
+        '              --sign "$APPLE_SIGNING_IDENTITY" "$out/libminutes_sherpa.dylib"\n',
+        "")),
 ]
 
 # Correct alternatives that must NOT be rejected, because a guard that only
