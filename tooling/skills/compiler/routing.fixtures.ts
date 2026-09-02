@@ -57,6 +57,10 @@ export const ROUTING_FIXTURES: RoutingFixture[] = [
     expectedSkill: "minutes-list",
   },
   {
+    utterance: "What did we say about pricing?",
+    expectedSkill: "minutes-mcp-recall",
+  },
+  {
     utterance: "How did I do in my last meeting?",
     expectedSkill: "minutes-mirror",
   },

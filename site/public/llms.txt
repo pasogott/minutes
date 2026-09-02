@@ -123,6 +123,7 @@ Workflow-level skills that wrap MCP tools into operator motions. Install in Clau
 - `/minutes-debrief` — Turn the latest meeting into decisions, follow-ups, and what changed from prep. Category: Lifecycle. Example: `/minutes-debrief`. Docs: https://useminutes.app/for-agents#minutes-debrief
 - `/minutes-prep` — Do a deeper relationship brief and talking-point prep before an important call. Category: Lifecycle. Example: `/minutes-prep Alex`. Docs: https://useminutes.app/for-agents#minutes-prep
 - `/minutes-weekly` — See weekly themes, stale commitments, and what deserves attention next. Category: Lifecycle. Example: `/minutes-weekly`. Docs: https://useminutes.app/for-agents#minutes-weekly
+- `/minutes-mcp-recall` — Route a meeting-memory question to the smallest useful read-only MCP tool. Category: Search. Example: `/minutes-mcp-recall what did we discuss about pricing?`. Docs: https://useminutes.app/for-agents#minutes-mcp-recall
 - `/minutes-search` — Find a topic, quote, person, or decision across past transcripts. Category: Search. Example: `/minutes-search pricing strategy`. Docs: https://useminutes.app/for-agents#minutes-search
 
 ## Output Format

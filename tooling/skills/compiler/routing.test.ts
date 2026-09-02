@@ -136,6 +136,7 @@ test("evaluateRoutingFixtures passes on the real Minutes skill corpus shape", ()
     makeSkill("minutes-ingest", ["backfill knowledge"]),
     makeSkill("minutes-lint", ["check for stale action items"]),
     makeSkill("minutes-list", ["show my recent recordings"]),
+    makeSkill("minutes-mcp-recall", ["what did we say about X"]),
     makeSkill("minutes-mirror", ["how did I do"]),
     makeSkill("minutes-note", ["note that"]),
     makeSkill("minutes-prep", ["prep me for my call with"]),

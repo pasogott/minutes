@@ -22,8 +22,8 @@ available without a separate MCP configuration.
 | Surface | Use when | Examples |
 |---|---|---|
 | Raw files | The agent can read `~/meetings/` directly. | Cursor, any local coding agent |
-| MCP server | The host supports MCP tools/resources/prompts. | Claude Desktop, Codex, Gemini CLI |
-| Portable skills | The host discovers Agent Skills-style `.agents/skills` folders. | Codex, Gemini CLI, Pi |
+| MCP server | The host supports MCP tools/resources/prompts. | Claude Desktop, Codex, Gemini CLI, OpenClaw, Hermes-agent |
+| Portable skills | The host discovers Agent Skills-style `.agents/skills` folders. | Codex, Gemini CLI, Pi, OpenClaw, Hermes-agent |
 | Host-specific skills | The host needs a different generated shape. | Claude Code plugin, OpenCode commands |
 | `agent_command` backend | Minutes should call the agent CLI for summaries. | `claude`, `codex`, `opencode`, `pi`, `agent` (Cursor Agent CLI) |
 | OpenAI-compatible model backend | Minutes should call a model API directly, not an agent CLI. | OpenRouter, Vercel AI Gateway, Cloudflare AI Gateway, llama.cpp, vLLM |

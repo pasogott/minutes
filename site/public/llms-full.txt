@@ -212,6 +212,10 @@ Workflow-level skills that wrap MCP tools into operator motions. Install in Clau
 
 ### Search
 
+- `/minutes-mcp-recall` — Route a meeting-memory question to the smallest useful read-only MCP tool.
+  - Description: Route meeting-recall questions to the right Minutes MCP tool.
+  - Example: `/minutes-mcp-recall what did we discuss about pricing?`
+  - Docs: https://useminutes.app/for-agents#minutes-mcp-recall
 - `/minutes-search` — Find a topic, quote, person, or decision across past transcripts.
   - Description: Search past meeting transcripts and voice memos for specific topics, people, decisions, or ideas. Use this whenever the user asks "what did we discuss about X", "find that meeting where we talked about Y", "what did Alex say", "did we decide on", "what was that idea about", or any question that could be answered by searching their meeting history. Also use for "do I have any notes about" or "check my meetings for".
   - Example: `/minutes-search pricing strategy`
