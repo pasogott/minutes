@@ -7,7 +7,9 @@ Optional — minutes works out of the box.
 # Or: $XDG_CONFIG_HOME/minutes/config.toml when XDG_CONFIG_HOME is set
 
 [transcription]
-engine = "whisper"        # "whisper" is the executable private-audio backend
+engine = "auto"           # Apple Silicon release builds use Parakeet v3 when installed, otherwise Whisper
+# engine = "whisper"      # Keep Whisper explicitly on every platform
+# engine = "sherpa"       # Select the in-process Parakeet v3 engine explicitly
 model = "small"           # whisper: tiny (75MB), base, small (466MB), medium, large-v3 (3.1GB)
 # language = "ur"          # Force transcription language (ISO 639-1 code, e.g. "en", "ur", "es", "zh")
                           # Default: auto-detect. Set this for similar-sounding languages (Urdu/Hindi, etc.)

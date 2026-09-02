@@ -46,13 +46,10 @@ jobs:
             os: macos-latest
             binary: minutes
             asset: minutes-macos-arm64
-            # engine-sherpa is OFF here until #683's isolation work lands:
-            # the release CLI carries diarize (default), and on macOS static
-            # sherpa and pyannote vendor conflicting copies of ONNX Runtime and
-            # kaldi-native-fbank, so one of them always breaks at runtime. The
-            # compile guard in crates/core/src/lib.rs enforces this; do not add
-            # engine-sherpa back without removing that guard's reason first.
-            features: parakeet,metal
+            # The loader adds about 0.1 MiB to the CLI. The isolated runtime is
+            # packaged in the sherpa archive below so it does not conflict with
+            # diarization's newer ONNX Runtime.
+            features: parakeet,metal,engine-sherpa
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             binary: minutes.exe
@@ -132,6 +129,39 @@ jobs:
         with:
           draft: true
           files: ${{ matrix.asset }}
+
+      - name: Package macOS CLI with the in-process sherpa plugin
+        id: sherpa-macos-archive
+        if: matrix.target == 'aarch64-apple-darwin'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ( cd crates/sherpa-plugin && cargo build --release --locked )
+          plugin="crates/sherpa-plugin/target/release/libminutes_sherpa.dylib"
+          out="minutes-macos-arm64-sherpa"
+          test -f "$plugin"
+          rm -rf "$out"
+          mkdir -p "$out"
+          cp -f "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$out/minutes"
+          cp -f "$plugin" "$out/"
+          ( cd /tmp && python3 \
+              "$GITHUB_WORKSPACE/scripts/verify_sherpa_plugin_loads.py" \
+              "$GITHUB_WORKSPACE/$out/libminutes_sherpa.dylib" )
+          tar czf "$out.tar.gz" "$out"
+
+      - name: Upload macOS sherpa archive artifact
+        if: matrix.target == 'aarch64-apple-darwin'
+        uses: actions/upload-artifact@v7
+        with:
+          name: minutes-macos-arm64-sherpa.tar.gz
+          path: minutes-macos-arm64-sherpa.tar.gz
+
+      - name: Upload macOS sherpa archive release asset
+        if: startsWith(github.ref, 'refs/tags/') && matrix.target == 'aarch64-apple-darwin'
+        uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          files: minutes-macos-arm64-sherpa.tar.gz
 
       # Windows needs the MSVC runtime beside the executable. Nothing ships it
       # today, so on a PC that has never had the Visual C++ Redistributable the

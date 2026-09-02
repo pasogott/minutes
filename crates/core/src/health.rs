@@ -253,6 +253,42 @@ pub fn append_native_call_invalid_stem_warning(
 /// Apple Speech's authenticated transport is live/dictation-only; health must
 /// describe that configured/resolved split while checking the model runtime.
 pub fn model_status(config: &Config) -> HealthItem {
+    let requested = config.transcription.engine.as_str();
+    let sherpa_plugin_required = cfg!(feature = "engine-sherpa")
+        && (requested.eq_ignore_ascii_case("sherpa")
+            || (requested.eq_ignore_ascii_case("auto")
+                && cfg!(all(
+                    feature = "engine-sherpa",
+                    target_os = "macos",
+                    target_arch = "aarch64"
+                ))));
+    if sherpa_plugin_required && !crate::transcribe::sherpa_plugin_present(config) {
+        return HealthItem {
+            label: "Speech model".into(),
+            state: "attention".into(),
+            detail: "The sherpa plugin is not installed beside this binary. Install `minutes-macos-arm64-sherpa.tar.gz` or the signed desktop app to use Parakeet v3; this install will use Whisper instead.".into(),
+            optional: false,
+        };
+    }
+
+    if crate::transcribe::effective_batch_engine(config) == "sherpa" {
+        let model_dir = crate::sherpa_engine::model_dir(config);
+        let exists = crate::sherpa_engine::model_files_present(&model_dir);
+        return HealthItem {
+            label: "Speech model".into(),
+            state: if exists { "ready" } else { "attention" }.into(),
+            detail: if exists {
+                format!("Parakeet v3 is installed at {}.", model_dir.display())
+            } else {
+                format!(
+                    "Parakeet v3 is not installed at {}. Run `minutes setup` to download it.",
+                    model_dir.display()
+                )
+            },
+            optional: false,
+        };
+    }
+
     let configured_parakeet = config.transcription.engine.eq_ignore_ascii_case("parakeet");
     if configured_parakeet
         && crate::pipeline::parakeet_capability(cfg!(feature = "parakeet")).selectable
@@ -968,6 +1004,38 @@ mod tests {
         let status = model_status(&config);
         assert_eq!(status.state, "attention");
         assert!(!status.optional);
+    }
+
+    #[cfg(feature = "engine-sherpa")]
+    #[test]
+    fn sherpa_health_names_the_packaged_installs_when_plugin_is_missing() {
+        let _env_lock = crate::test_home_env_lock();
+        let previous = std::env::var_os("MINUTES_SHERPA_PLUGIN");
+        let temp = tempfile::TempDir::new().unwrap();
+        std::env::set_var(
+            "MINUTES_SHERPA_PLUGIN",
+            temp.path().join("definitely-missing-sherpa-plugin"),
+        );
+        let config = Config {
+            transcription: crate::config::TranscriptionConfig {
+                engine: "sherpa".into(),
+                model_path: temp.path().to_path_buf(),
+                ..Config::default().transcription
+            },
+            ..Config::default()
+        };
+
+        let status = model_status(&config);
+
+        if let Some(previous) = previous {
+            std::env::set_var("MINUTES_SHERPA_PLUGIN", previous);
+        } else {
+            std::env::remove_var("MINUTES_SHERPA_PLUGIN");
+        }
+        assert_eq!(status.state, "attention");
+        assert!(status.detail.contains("minutes-macos-arm64-sherpa.tar.gz"));
+        assert!(status.detail.contains("signed desktop app"));
+        assert!(!status.detail.contains("Parakeet v3 is not installed"));
     }
 
     #[test]

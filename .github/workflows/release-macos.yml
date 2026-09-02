@@ -189,17 +189,15 @@ jobs:
             | grep -Fq "$APPLE_SIGNING_IDENTITY"
           echo "MINUTES_RELEASE_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
 
+      - name: Build isolated sherpa plugin
+        working-directory: crates/sherpa-plugin
+        run: cargo build --release --locked
+
       # The bundle ships the CLI as a sidecar (in-app "Set up CLI" symlinks to
       # it). build.rs stages it from target/release/minutes, so the CLI must be
       # built first or the bundle ships a placeholder stub (#324).
       - name: Build release CLI for bundling
-        # engine-sherpa held out pending packaging (#369), not because it
-        # conflicts. #685 moved sherpa into a dlopened plugin with its own
-        # ONNX Runtime, so it coexists with diarize now and CI compiles the
-        # pair on purpose. What is missing is a signed, notarized plugin
-        # beside the binary; an unsigned dylib loaded by this hardened,
-        # notarized app is refused at load.
-        run: cargo build --release -p minutes-cli --features parakeet,metal
+        run: cargo build --release -p minutes-cli --features parakeet,metal,engine-sherpa
 
       - name: Build signed bundle (helper identity is repaired before notarization)
         env:
@@ -212,14 +210,9 @@ jobs:
         # workspace, so cargo resolves --features against every member, and
         # minutes-archive-app has neither parakeet nor metal.
         working-directory: tauri/src-tauri
-        # engine-sherpa held out pending packaging (#369). The #683 conflict
-        # that once justified this is gone: #685 put sherpa in its own
-        # dlopened image, so the app can hard-enable diarize and still load
-        # it. The plugin just is not signed and shipped inside the bundle
-        # yet.
-        run: cargo tauri build --features parakeet,metal --bundles app
+        run: cargo tauri build --features parakeet,metal,engine-sherpa --bundles app
 
-      - name: Sign graph helper inside-out and notarize the final exact app
+      - name: Sign nested code inside-out and notarize the final exact app
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
@@ -230,9 +223,12 @@ jobs:
           set -euo pipefail
           app="target/release/bundle/macos/Minutes.app"
           sidecar="target/release/bundle/macos/Minutes.app/Contents/MacOS/minutes"
+          sherpa_plugin="$app/Contents/MacOS/libminutes_sherpa.dylib"
+          cp -f crates/sherpa-plugin/target/release/libminutes_sherpa.dylib "$sherpa_plugin"
           staged_graph_worker="$app/Contents/MacOS/minutes-graph-worker"
           staged_apple_speech_worker="$app/Contents/MacOS/minutes-apple-speech-worker"
           test -f "$sidecar" || { echo "ERROR: bundled CLI sidecar missing" >&2; exit 1; }
+          test -f "$sherpa_plugin" || { echo "ERROR: bundled sherpa plugin missing" >&2; exit 1; }
           test -f "$staged_graph_worker" || { echo "ERROR: bundled graph worker missing" >&2; exit 1; }
           test -f "$staged_apple_speech_worker" || { echo "ERROR: bundled Apple Speech worker missing" >&2; exit 1; }
           size=$(stat -f%z "$sidecar")
@@ -242,9 +238,12 @@ jobs:
             exit 1
           fi
           file "$sidecar" | grep -q "Mach-O" || { echo "ERROR: bundled CLI sidecar is not a Mach-O binary" >&2; exit 1; }
+          file "$sherpa_plugin" | grep -q "Mach-O" || { echo "ERROR: bundled sherpa plugin is not a Mach-O binary" >&2; exit 1; }
           file "$staged_graph_worker" | grep -q "Mach-O" || { echo "ERROR: bundled graph worker is not a Mach-O binary" >&2; exit 1; }
           file "$staged_apple_speech_worker" | grep -q "Mach-O" || { echo "ERROR: bundled Apple Speech worker is not a Mach-O binary" >&2; exit 1; }
 
+          codesign --force --options runtime --timestamp \
+            --sign "$APPLE_SIGNING_IDENTITY" "$sherpa_plugin"
           codesign --force --options runtime --timestamp \
             --entitlements tauri/src-tauri/minutes-cli.entitlements \
             --sign "$APPLE_SIGNING_IDENTITY" "$sidecar"
@@ -269,6 +268,7 @@ jobs:
             --entitlements tauri/src-tauri/entitlements.plist \
             --sign "$APPLE_SIGNING_IDENTITY" "$app"
           codesign --verify --deep --strict --verbose=4 "$app"
+          codesign --verify --strict --verbose=4 "$sherpa_plugin"
           codesign --verify --strict --verbose=4 "$graph_worker_bundle"
           codesign --verify --strict --verbose=4 "$apple_speech_worker_bundle"
 

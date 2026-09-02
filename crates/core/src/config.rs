@@ -233,10 +233,10 @@ impl Default for VoiceConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TranscriptionConfig {
-    /// Transcription engine preference: "whisper" (default), "parakeet", or
-    /// "apple-speech". Apple Speech remains a retained preference and resolves
-    /// to Whisper while its authenticated byte transport awaits signed runtime
-    /// acceptance.
+    /// Transcription engine preference: "auto" (default), "whisper", "sherpa",
+    /// "parakeet", or "apple-speech". Auto selects sherpa Parakeet v3 only on
+    /// Apple Silicon when the engine is compiled and the model is installed;
+    /// otherwise it resolves to Whisper.
     pub engine: String,
     pub model: String,
     pub model_path: PathBuf,
@@ -1379,7 +1379,7 @@ impl Default for Config {
 impl Default for TranscriptionConfig {
     fn default() -> Self {
         Self {
-            engine: "whisper".into(),
+            engine: "auto".into(),
             model: "small".into(),
             model_path: minutes_dir().join("models"),
             min_words: 3,
@@ -1511,12 +1511,11 @@ impl Default for WatchConfig {
 impl Config {
     /// Effective backend for the standalone live transcript path.
     ///
-    /// `live_transcript.backend = "inherit"` follows `transcription.engine`,
-    /// except for the legacy `transcription.engine = "apple-speech"` case,
-    /// which older configs used to express the standalone-live-only Apple
-    /// experiment. We retain that preference here so non-Tauri consumers keep
-    /// the user's intent even though runtime selection currently resolves it to
-    /// sealed Whisper.
+    /// `live_transcript.backend = "inherit"` follows an explicit
+    /// `transcription.engine`, except that the batch-only `"auto"` setting
+    /// resolves to Whisper for live transcription. The legacy
+    /// `transcription.engine = "apple-speech"` case is retained here because
+    /// older configs used it to express the standalone-live-only experiment.
     pub fn effective_live_transcript_backend(&self) -> &str {
         let backend = self.live_transcript.backend.trim();
         // Case-insensitive: engine/backend matching is case-insensitive
@@ -1529,6 +1528,8 @@ impl Config {
                 .eq_ignore_ascii_case("apple-speech")
             {
                 "apple-speech"
+            } else if self.transcription.engine.eq_ignore_ascii_case("auto") {
+                "whisper"
             } else {
                 &self.transcription.engine
             }
@@ -2022,7 +2023,7 @@ mod tests {
     #[test]
     fn default_config_is_valid() {
         let config = Config::default();
-        assert_eq!(config.transcription.engine, "whisper");
+        assert_eq!(config.transcription.engine, "auto");
         assert_eq!(
             config.live_transcript.backend,
             LIVE_TRANSCRIPT_BACKEND_INHERIT
@@ -2490,7 +2491,7 @@ parakeet_binary = "/usr/local/bin/parakeet"
     }
 
     #[test]
-    fn omitted_engine_defaults_to_whisper() {
+    fn omitted_engine_defaults_to_auto() {
         let dir = TempDir::new().unwrap();
         let config_path = dir.path().join("config.toml");
         std::fs::write(
@@ -2503,7 +2504,7 @@ model = "tiny"
         .unwrap();
 
         let config = Config::load_from(&config_path);
-        assert_eq!(config.transcription.engine, "whisper");
+        assert_eq!(config.transcription.engine, "auto");
         assert_eq!(config.transcription.parakeet_binary, "parakeet");
     }
 
@@ -2514,6 +2515,13 @@ model = "tiny"
 
         assert_eq!(config.standalone_live_backend_setting(), "inherit");
         assert_eq!(config.effective_live_transcript_backend(), "parakeet");
+    }
+
+    #[test]
+    fn effective_live_transcript_backend_keeps_auto_on_whisper() {
+        let config = Config::default();
+        assert_eq!(config.transcription.engine, "auto");
+        assert_eq!(config.effective_live_transcript_backend(), "whisper");
     }
 
     #[test]
@@ -2641,7 +2649,7 @@ backend = "apple-speech"
 
         let config = Config::load_from(&config_path);
         assert_eq!(config.dictation.backend, "apple-speech");
-        assert_eq!(config.transcription.engine, "whisper");
+        assert_eq!(config.transcription.engine, "auto");
     }
 
     #[test]
@@ -2659,7 +2667,7 @@ backend = "parakeet"
 
         let config = Config::load_from(&config_path);
         assert_eq!(config.dictation.backend, "parakeet");
-        assert_eq!(config.transcription.engine, "whisper");
+        assert_eq!(config.transcription.engine, "auto");
     }
 
     // ── Call detection: stop-when-call-ends opt-in ────────────

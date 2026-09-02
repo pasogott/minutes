@@ -12843,6 +12843,7 @@ pub fn cmd_get_settings() -> serde_json::Value {
     let live_readiness = standalone_live_readiness_view(&config);
     let parakeet_capability =
         minutes_core::pipeline::parakeet_capability(cfg!(feature = "parakeet"));
+    let auto_engine = minutes_core::transcribe::auto_transcription_engine_resolution(&config);
 
     serde_json::json!({
         "config_path": path.display().to_string(),
@@ -12852,6 +12853,7 @@ pub fn cmd_get_settings() -> serde_json::Value {
         "transcription": {
             "engine": config.transcription.engine,
             "resolved_engine": batch_readiness.resolved_backend,
+            "auto_engine_reason": auto_engine.reason,
             "model": config.transcription.model,
             "downloaded_models": downloaded_models,
             "language": config.transcription.language,

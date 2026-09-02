@@ -93,9 +93,9 @@ fn plugin_file_name() -> &'static str {
 /// `MINUTES_SHERPA_PLUGIN` wins so a developer can point at a freshly built
 /// dylib in `target/` without installing it. Otherwise it is looked for beside
 /// the running executable, which is how a packaged app carries it, and then in
-/// the Minutes install root, which is the intended install location once the
-/// plugin ships as a release asset. Nothing installs it there automatically
-/// yet, so a source build copies it or points the variable at `target/`.
+/// the Minutes install root. Release archives and the macOS app carry it beside
+/// the executable; a source build copies it there or points the variable at
+/// `target/`.
 pub fn candidate_paths(config: &Config) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(explicit) = std::env::var("MINUTES_SHERPA_PLUGIN") {
@@ -114,6 +114,24 @@ pub fn candidate_paths(config: &Config) -> Vec<PathBuf> {
             .join(plugin_file_name()),
     );
     candidates
+}
+
+fn plugin_available_for_config(config: &Config) -> bool {
+    candidate_paths(config).iter().any(|path| path.is_file())
+}
+
+/// Whether a sherpa plugin file exists in one of the loader's search paths.
+///
+/// This intentionally does not call `dlopen`: auto-selection, health, and
+/// setup need a cheap, side-effect-free filesystem probe. The real loader
+/// still validates the plugin ABI and symbols before transcription begins.
+pub fn plugin_available() -> bool {
+    plugin_available_for_config(&Config::default())
+}
+
+/// Config-aware form used by core engine resolution.
+pub(crate) fn plugin_available_with_config(config: &Config) -> bool {
+    plugin_available_for_config(config)
 }
 
 /// Load the plugin from `path`, checking the ABI before taking any symbol.
@@ -484,6 +502,17 @@ mod tests {
     }
 
     #[test]
+    fn plugin_available_checks_file_presence_without_loading_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = dir.path().join(plugin_file_name());
+        std::fs::write(&fake, b"not a dynamic library").unwrap();
+
+        temp_env_var("MINUTES_SHERPA_PLUGIN", fake.to_str(), || {
+            assert!(plugin_available())
+        });
+    }
+
+    #[test]
     fn loading_a_file_that_is_not_a_library_reports_the_path() {
         let dir = tempfile::tempdir().unwrap();
         let fake = dir.path().join(plugin_file_name());
@@ -501,6 +530,7 @@ mod tests {
     }
 
     fn temp_env_var(key: &str, value: Option<&str>, body: impl FnOnce()) {
+        let _env_lock = crate::test_home_env_lock();
         let previous = std::env::var(key).ok();
         match value {
             Some(v) => std::env::set_var(key, v),

@@ -337,6 +337,24 @@ describe("Whisper model auto-setup", () => {
     expect(result.logs.join("\n")).toContain("skipping Whisper auto-setup");
   });
 
+  it("does not run tiny setup when auto resolves to sherpa", async () => {
+    const result = await runModelCheck({
+      health: {
+        ok: true,
+        data: {
+          engine: "auto",
+          effective_engine: "sherpa",
+          items: [missingItem],
+        },
+      },
+    });
+
+    expect(result.setups).toEqual([]);
+    expect(result.logs).toContain(
+      "[Minutes] Auto transcription resolved to sherpa — skipping Whisper auto-setup"
+    );
+  });
+
   it("conservatively skips an old CLI non-Whisper engine with upgrade guidance", async () => {
     const result = await runModelCheck({
       health: { ok: true, data: { engine: "parakeet", items: [missingItem] } },

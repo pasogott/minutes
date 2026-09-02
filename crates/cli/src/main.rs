@@ -931,9 +931,10 @@ enum Commands {
 
     /// Download whisper model and set up minutes
     Setup {
-        /// Model to download: a Whisper model, or legacy/community-1 with --diarization
-        #[arg(short, long, default_value = "small")]
-        model: String,
+        /// Whisper model to download (tiny, base, small, medium, large-v3), or with
+        /// --diarization the model set: legacy or community-1. Omit to let setup choose.
+        #[arg(short, long)]
+        model: Option<String>,
 
         /// Download only the Silero VAD model(s) into the configured model directory; takes precedence over --model
         #[arg(long)]
@@ -2383,9 +2384,19 @@ fn main() -> Result<()> {
             } else if parakeet {
                 cmd_setup_parakeet(&parakeet_model)
             } else if sherpa {
-                cmd_setup_sherpa(&config)
+                cmd_setup_sherpa(&config, true)
+            } else if list {
+                cmd_setup("small", true, false)
+            } else if diarization {
+                cmd_setup(model.as_deref().unwrap_or("small"), false, true)
             } else {
-                cmd_setup(&model, list, diarization)
+                let plan = setup_plan(model.as_deref());
+                eprintln!("Setup selection: {}", plan.reason);
+                cmd_setup(&plan.whisper_model, false, false)?;
+                if plan.install_sherpa {
+                    cmd_setup_sherpa(&config, false)?;
+                }
+                Ok(())
             }
         }
         Commands::Qmd { action, collection } => cmd_qmd(&action, &collection),
@@ -7292,6 +7303,64 @@ fn cmd_sources() -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SetupPlan {
+    whisper_model: String,
+    install_sherpa: bool,
+    reason: String,
+}
+
+fn setup_plan(explicit_model: Option<&str>) -> SetupPlan {
+    #[cfg(feature = "engine-sherpa")]
+    let plugin_present = minutes_core::sherpa_plugin::plugin_available();
+    #[cfg(not(feature = "engine-sherpa"))]
+    let plugin_present = false;
+
+    setup_plan_for(
+        explicit_model,
+        cfg!(all(
+            feature = "engine-sherpa",
+            target_os = "macos",
+            target_arch = "aarch64"
+        )),
+        plugin_present,
+    )
+}
+
+fn setup_plan_for(
+    explicit_model: Option<&str>,
+    sherpa_auto_supported: bool,
+    plugin_present: bool,
+) -> SetupPlan {
+    if let Some(model) = explicit_model {
+        return SetupPlan {
+            whisper_model: model.to_string(),
+            install_sherpa: false,
+            reason: format!("--model selected Whisper {model}."),
+        };
+    }
+
+    if sherpa_auto_supported && plugin_present {
+        SetupPlan {
+            whisper_model: "tiny".into(),
+            install_sherpa: true,
+            reason: "this Apple Silicon build includes sherpa, so setup will install Parakeet v3 plus Whisper tiny for live and dictation fallback.".into(),
+        }
+    } else if sherpa_auto_supported {
+        SetupPlan {
+            whisper_model: "small".into(),
+            install_sherpa: false,
+            reason: "this Apple Silicon build includes sherpa but its plugin is missing, so setup will install Whisper small. Install `minutes-macos-arm64-sherpa.tar.gz` or the signed desktop app to get the plugin and Parakeet v3.".into(),
+        }
+    } else {
+        SetupPlan {
+            whisper_model: "small".into(),
+            install_sherpa: false,
+            reason: "sherpa auto-selection is unavailable on this build or platform, so setup will install Whisper small.".into(),
+        }
+    }
+}
+
 fn cmd_setup(model: &str, list: bool, diarization: bool) -> Result<()> {
     if list {
         eprintln!("Available whisper models:");
@@ -7782,7 +7851,7 @@ fn cmd_setup_parakeet(model: &str) -> Result<()> {
 /// Download a file from a URL to a destination path, with progress reporting.
 /// Download the sherpa-onnx parakeet-tdt-0.6b-v3 (int8) model for the opt-in
 /// `engine-sherpa` transcription engine into the resolved model directory.
-fn cmd_setup_sherpa(config: &Config) -> Result<()> {
+fn cmd_setup_sherpa(config: &Config, select_sherpa: bool) -> Result<()> {
     let dir = minutes_core::sherpa_engine::model_dir(config);
     eprintln!("Installing sherpa-onnx parakeet-tdt-0.6b-v3 (int8) model");
     eprintln!("  Dir: {}", dir.display());
@@ -7809,12 +7878,11 @@ fn cmd_setup_sherpa(config: &Config) -> Result<()> {
     }
     eprintln!("\nSherpa model ready.");
 
-    // One-command UX: make sherpa the active engine. Safe to set unconditionally
-    // -- if this binary wasn't built with `--features engine-sherpa`, or the model
-    // ever goes missing, transcription auto-falls-back to whisper (with a warning),
-    // so the recording never breaks.
+    // Explicit `--sherpa` keeps the one-command UX and selects sherpa. Plain setup
+    // installs the model for `engine = "auto"` without overwriting an existing
+    // engine choice.
     let mut cfg = Config::load();
-    if cfg.transcription.engine != "sherpa" {
+    if select_sherpa && cfg.transcription.engine != "sherpa" {
         cfg.transcription.engine = "sherpa".to_string();
         match cfg.save() {
             Ok(()) => eprintln!(
@@ -7827,7 +7895,7 @@ fn cmd_setup_sherpa(config: &Config) -> Result<()> {
             ),
         }
     }
-    if !cfg!(feature = "engine-sherpa") {
+    if select_sherpa && !cfg!(feature = "engine-sherpa") {
         eprintln!(
             "Note: this build lacks the sherpa engine, so transcription falls back to whisper \
              until you build with `--features engine-sherpa`."
@@ -9413,7 +9481,7 @@ life (qmd://life/)
                 vad: true,
                 ref model,
                 ..
-            } if model == "small"
+            } if model.is_none()
         ));
 
         let parsed = parse_cli(["minutes", "setup", "--vad", "--model", "large-v3"])
@@ -9424,8 +9492,32 @@ life (qmd://life/)
                 vad: true,
                 ref model,
                 ..
-            } if model == "large-v3"
+            } if model.as_deref() == Some("large-v3")
         ));
+    }
+
+    #[test]
+    fn setup_plan_keeps_explicit_model_and_platform_defaults() {
+        let explicit = setup_plan_for(Some("medium"), true, false);
+        assert_eq!(explicit.whisper_model, "medium");
+        assert!(!explicit.install_sherpa);
+
+        let apple_silicon = setup_plan_for(None, true, true);
+        assert_eq!(apple_silicon.whisper_model, "tiny");
+        assert!(apple_silicon.install_sherpa);
+        assert!(apple_silicon.reason.contains("Apple Silicon"));
+
+        let plugin_missing = setup_plan_for(None, true, false);
+        assert_eq!(plugin_missing.whisper_model, "small");
+        assert!(!plugin_missing.install_sherpa);
+        assert!(plugin_missing
+            .reason
+            .contains("minutes-macos-arm64-sherpa.tar.gz"));
+        assert!(plugin_missing.reason.contains("desktop app"));
+
+        let fallback = setup_plan_for(None, false, false);
+        assert_eq!(fallback.whisper_model, "small");
+        assert!(!fallback.install_sherpa);
     }
 
     #[test]
@@ -9680,14 +9772,16 @@ life (qmd://life/)
 
     #[test]
     fn health_json_envelope_includes_effective_transcription_metadata() {
-        let report = health_json_report(&Config::default(), &[]);
-        let envelope = json_envelope("minutes health", report);
-        let value = serde_json::to_value(envelope).unwrap();
+        let value = health_json_envelope(&Config::default(), &[]).unwrap();
         assert_eq!(value["ok"], true);
         assert_eq!(value["command"], "minutes health");
         assert_eq!(value["meta"]["schemaVersion"], 1);
+        assert!(value["engine"].is_string());
+        assert!(value["effective_engine"].is_string());
+        assert!(value["reason"].is_string());
         assert!(value["data"]["engine"].is_string());
         assert!(value["data"]["effective_engine"].is_string());
+        assert!(value["data"]["reason"].is_string());
         assert!(value["data"]["model"].is_string());
         assert!(value["meta"]["generatedAt"].is_string());
     }
@@ -16680,8 +16774,7 @@ fn cmd_health(json: bool) -> Result<()> {
     let items = minutes_core::health::check_all(&config);
 
     if json {
-        let report = health_json_report(&config, &items);
-        let envelope = json_envelope("minutes health", report);
+        let envelope = health_json_envelope(&config, &items)?;
         println!("{}", serde_json::to_string_pretty(&envelope)?);
     } else {
         let all_ready = items.iter().all(|i| i.state == "ready");
@@ -16710,6 +16803,21 @@ fn cmd_health(json: bool) -> Result<()> {
     Ok(())
 }
 
+fn health_json_envelope(
+    config: &Config,
+    items: &[minutes_core::health::HealthItem],
+) -> Result<serde_json::Value> {
+    let report = health_json_report(config, items);
+    let mut envelope = serde_json::to_value(json_envelope("minutes health", report.clone()))?;
+    let object = envelope
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("health JSON envelope must be an object"))?;
+    for key in ["engine", "effective_engine", "reason"] {
+        object.insert(key.to_string(), report[key].clone());
+    }
+    Ok(envelope)
+}
+
 fn health_json_report(
     config: &Config,
     items: &[minutes_core::health::HealthItem],
@@ -16718,9 +16826,11 @@ fn health_json_report(
         .iter()
         .filter(|item| item.state == "attention")
         .count();
+    let resolution = minutes_core::transcribe::transcription_engine_resolution(config);
     serde_json::json!({
         "engine": config.transcription.engine,
-        "effective_engine": minutes_core::transcribe::effective_transcription_engine(config),
+        "effective_engine": resolution.engine,
+        "reason": resolution.reason,
         "model": config.transcription.model,
         "all_ready": attention_count == 0,
         "attention_count": attention_count,

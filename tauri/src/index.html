@@ -6648,6 +6648,7 @@
           <div class="about-controls-group">
             <div class="about-controls-copy">Engine</div>
             <select id="settings-transcription-engine" class="settings-field">
+              <option value="auto">Auto (Whisper)</option>
               <option value="whisper">Whisper — broad language support, built-in</option>
               <option value="parakeet" disabled>Parakeet — unavailable</option>
               <option value="apple-speech" disabled>Apple Speech — unavailable, using Whisper</option>
@@ -12320,7 +12321,7 @@
           if (hkStatus) hkStatus.textContent = hotkeyEnabled ? 'Active' : 'Off';
         }
         // Engine selector
-        const eng = s.transcription.engine || 'whisper';
+        const eng = s.transcription.engine || 'auto';
         const resolvedBatchEngine = s.transcription.resolved_engine || eng;
         const liveTranscript = s.live_transcript || {};
         const liveBackend = liveTranscript.backend || 'inherit';
@@ -12332,6 +12333,7 @@
         const parakeetStatus = s.transcription.parakeet_status || null;
         const appleSpeechStatus = s.transcription.apple_speech_status || null;
         const engineSelect = document.getElementById('settings-transcription-engine');
+        const autoOpt = engineSelect.querySelector('option[value="auto"]');
         const parakeetOpt = engineSelect.querySelector('option[value="parakeet"]');
         const engineAppleOpt = engineSelect.querySelector('option[value="apple-speech"]');
         const engineDetail = document.getElementById('settings-transcription-engine-detail');
@@ -12339,6 +12341,11 @@
         const liveBackendDetail = document.getElementById('settings-live-backend-detail');
         const liveParakeetOpt = liveBackendSelect ? liveBackendSelect.querySelector('option[value="parakeet"]') : null;
         const liveAppleOpt = liveBackendSelect ? liveBackendSelect.querySelector('option[value="apple-speech"]') : null;
+        if (autoOpt) {
+          autoOpt.textContent = s.transcription.auto_engine_reason === 'sherpa: model present'
+            ? 'Auto (Parakeet)'
+            : 'Auto (Whisper)';
+        }
         if (parakeetOpt) {
           parakeetOpt.disabled = !parakeetSelectable;
           parakeetOpt.textContent = parakeetSelectable

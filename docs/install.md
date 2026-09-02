@@ -15,6 +15,18 @@ export CXXFLAGS="-I$(xcrun --show-sdk-path)/usr/include/c++/v1"
 cargo install --path crates/cli
 ```
 
+#### Which install gets Parakeet by default
+
+- The signed desktop app does: its sherpa plugin is bundled and signed.
+- `minutes-macos-arm64-sherpa.tar.gz` does: its plugin sits beside the binary.
+- The bare `minutes-macos-arm64` asset, `cargo install`, and the Homebrew CLI
+  formula do not. Those installs use Whisper until the plugin is placed beside
+  the binary or in another documented loader path.
+
+The MCP server's auto-install currently fetches the bare binary, so
+agent-driven installs stay on Whisper for now. A follow-up will move that path
+to the sherpa archive.
+
 ### Windows
 
 Download **`minutes-windows-x64.zip`** from the
