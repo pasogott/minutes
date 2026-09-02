@@ -93,9 +93,9 @@ fn plugin_file_name() -> &'static str {
 /// `MINUTES_SHERPA_PLUGIN` wins so a developer can point at a freshly built
 /// dylib in `target/` without installing it. Otherwise it is looked for beside
 /// the running executable, which is how a packaged app carries it, and then in
-/// the Minutes install root, which is the intended install location once the
-/// plugin ships as a release asset. Nothing installs it there automatically
-/// yet, so a source build copies it or points the variable at `target/`.
+/// the Minutes install root. Release archives and the macOS app carry it beside
+/// the executable; a source build copies it there or points the variable at
+/// `target/`.
 pub fn candidate_paths(config: &Config) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(explicit) = std::env::var("MINUTES_SHERPA_PLUGIN") {

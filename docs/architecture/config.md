@@ -21,7 +21,7 @@ So `minutes record --device "MacBook Pro Microphone"` always wins over `[recordi
 
 | key | default | meaning |
 |---|---|---|
-| `engine` | `"whisper"` | `"whisper"` (default), or a retained `"parakeet"` preference. Parakeet is not currently selectable on any platform, so retained values resolve visibly to Whisper. |
+| `engine` | `"auto"` | `"auto"` selects sherpa Parakeet v3 on Apple Silicon when the build includes `engine-sherpa` and the model is installed, otherwise Whisper. Explicit `"whisper"` and `"sherpa"` keep their meanings; `"parakeet"` remains a retained, currently unavailable sidecar preference. |
 | `model` | `"base"` | Whisper model: `tiny` / `base` / `small` / `medium` / `large-v3` |
 | `parakeet_model` | `"tdt-ctc-110m"` | Parakeet model: `tdt-ctc-110m` or `tdt-600m` |
 | `language` | auto-detect | BCP-47 tag (e.g. `"en"`, `"es"`) to force a specific language |

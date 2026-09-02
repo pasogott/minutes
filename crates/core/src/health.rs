@@ -253,6 +253,24 @@ pub fn append_native_call_invalid_stem_warning(
 /// Apple Speech's authenticated transport is live/dictation-only; health must
 /// describe that configured/resolved split while checking the model runtime.
 pub fn model_status(config: &Config) -> HealthItem {
+    if crate::transcribe::effective_batch_engine(config) == "sherpa" {
+        let model_dir = crate::sherpa_engine::model_dir(config);
+        let exists = crate::sherpa_engine::model_files_present(&model_dir);
+        return HealthItem {
+            label: "Speech model".into(),
+            state: if exists { "ready" } else { "attention" }.into(),
+            detail: if exists {
+                format!("Parakeet v3 is installed at {}.", model_dir.display())
+            } else {
+                format!(
+                    "Parakeet v3 is not installed at {}. Run `minutes setup` to download it.",
+                    model_dir.display()
+                )
+            },
+            optional: false,
+        };
+    }
+
     let configured_parakeet = config.transcription.engine.eq_ignore_ascii_case("parakeet");
     if configured_parakeet
         && crate::pipeline::parakeet_capability(cfg!(feature = "parakeet")).selectable

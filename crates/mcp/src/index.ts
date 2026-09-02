@@ -2575,6 +2575,14 @@ export async function ensureWhisperModel(
     return;
   }
 
+  // Auto may resolve to sherpa when Parakeet v3 is installed. In that case
+  // Whisper readiness is irrelevant to MCP startup and must not trigger the
+  // legacy `setup --model tiny` path.
+  if (healthOutput.effectiveEngine?.toLowerCase() === "sherpa") {
+    log("[Minutes] Auto transcription resolved to sherpa — skipping Whisper auto-setup");
+    return;
+  }
+
   const modelItem = healthOutput.items.find((item) => item.label === "Speech model");
   if (!modelItem) {
     log("[Minutes] unrecognized health items — skipping Whisper auto-setup");

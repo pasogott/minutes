@@ -5,12 +5,11 @@ as the recommended SOTA / multilingual transcription engine. The Sherpa path
 runs parakeet-tdt-0.6b-v3 through the Rust `sherpa-rs` crate in-process, without
 Python and without a separate sidecar binary.
 
-Whisper.cpp remains the **bundled default** (it ships in every build and works
-on every platform with no extra download). Sherpa is **opt-in**: it is compiled
-when the `engine-sherpa` Cargo feature is enabled and selected at runtime with
-`transcription.engine = "sherpa"`. If you select Sherpa on a build/platform that
-does not have it, or before the model is installed, transcription automatically
-falls back to Whisper (with a warning) so a recording never breaks.
+`transcription.engine = "auto"` is the compiled default. On Apple Silicon it
+selects sherpa when the build includes `engine-sherpa` and the Parakeet v3 model
+is installed; otherwise it selects Whisper. Explicit `"whisper"` and `"sherpa"`
+values keep their meaning, and unavailable sherpa requests still fall back to
+Whisper so a recording never breaks.
 
 ## Quick Start (recommended)
 
@@ -75,15 +74,16 @@ minutes setup --sherpa     # downloads the int8 ONNX model + sets engine = "sher
 > cp crates/sherpa-plugin/target/release/*.so ~/.minutes/lib/
 > ```
 >
-> The binary itself no longer links sherpa at all, so it needs nothing beside
-> it. The released `minutes-linux-x64-sherpa.tar.gz` ships exactly this layout,
-> with the plugin next to the executable instead, which is the other path the
-> loader searches.
+> The binary itself no longer links sherpa at all, so the plugin must remain
+> beside it. The released Linux and macOS sherpa archives ship exactly this
+> layout, which is one of the paths the loader searches.
 >
 > Windows resolves a DLL's dependencies from the loading process's search path
 > rather than the DLL's own directory, so the same trick does not apply there
 > and it needs its own packaging. That is tracked in #645.
 
+On Apple Silicon builds with `engine-sherpa`, plain `minutes setup` downloads
+the four model files plus Whisper tiny for live and dictation fallback.
 `minutes setup --sherpa` downloads the four model files (with a size-floor
 integrity check) and writes `transcription.engine = "sherpa"` to your config, so
 no manual edit is needed. If the binary lacks the `engine-sherpa` feature, setup
@@ -106,7 +106,7 @@ The bundled engine target is:
 
 | Engine | Runtime | Model | Install shape |
 |--------|---------|-------|---------------|
-| Whisper | whisper.cpp via `whisper-rs` | small by default | default build |
+| Whisper | whisper.cpp via `whisper-rs` | small by default; tiny alongside Apple Silicon auto | every build |
 | Parakeet | external `parakeet.cpp` binary / sidecar | tdt-ctc-110m or tdt-600m | opt-in feature + external binary |
 | **Sherpa** | **in-process `sherpa-rs`** | **parakeet-tdt-0.6b-v3 int8** | **opt-in feature + ONNX files** |
 
@@ -119,7 +119,7 @@ to 16 kHz mono samples, and calls the in-process Sherpa recognizer.
 If Sherpa support is not compiled into the current build, or the model files
 are not yet installed, selecting `engine = "sherpa"` transparently falls back to
 Whisper for that recording and logs a warning (with the resolved model directory
-and whether the feature was compiled in). Whisper is the bundled default and the
+and whether the feature was compiled in). Whisper is the universal fallback and the
 fallback target, so a selected-but-unavailable Sherpa engine never breaks a
 recording.
 
@@ -199,7 +199,7 @@ configure it by hand (or to point at a custom model directory), edit
 
 ```toml
 [transcription]
-engine = "sherpa"               # "whisper" (default), "parakeet", or "sherpa"
+engine = "sherpa"               # default is "auto"; explicit "whisper" and "sherpa" are supported
 # sherpa_model_dir = "/absolute/path/to/parakeet-tdt-0.6b-v3-int8"
 ```
 
@@ -228,7 +228,8 @@ cargo build --release -p minutes-cli --features engine-sherpa,metal
 (cd crates/sherpa-plugin && cargo build --release)
 ```
 
-The feature is opt-in and not included in the default build.
+The feature is opt-in for source builds and enabled in macOS arm64 release
+builds.
 
 `engine-sherpa` and `diarize` coexist on every platform since #685, so there is
 no longer any reason to drop the default features. Before that, both stacks
@@ -261,9 +262,10 @@ Change `engine = "whisper"` in config.toml. No model deletion is required.
 The binary was built without the `engine-sherpa` feature. Rebuild with:
 
 ```bash
-# macOS: the defaults include diarize, which cannot share a binary with
-# engine-sherpa (issue #683), so drop them and re-add whisper:
-cargo build -p minutes-cli --no-default-features --features whisper,engine-sherpa,metal
+# macOS: the isolated plugin keeps sherpa's ONNX Runtime separate from
+# diarization, so the ordinary defaults can remain enabled:
+cargo build -p minutes-cli --features engine-sherpa,metal
+(cd crates/sherpa-plugin && cargo build --release)
 ```
 
 ### "sherpa model not found"

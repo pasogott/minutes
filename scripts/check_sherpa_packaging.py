@@ -39,6 +39,7 @@ REPO = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO / ".github/workflows/release-cli.yml"
 WORKFLOW_NAME = ".github/workflows/release-cli.yml"
 STEP_ID = "sherpa-archive"
+MAC_STEP_ID = "sherpa-macos-archive"
 LOADER = "scripts/verify_sherpa_plugin_loads.py"
 PLUGIN = "libminutes_sherpa.so"
 # Every library the archive must contain. The plugin resolves the sherpa pair
@@ -47,7 +48,7 @@ PLUGIN = "libminutes_sherpa.so"
 REQUIRED_LIBS = [PLUGIN, "libsherpa-onnx-c-api.so", "libonnxruntime.so"]
 
 
-def archive_script(workflow_text: str) -> str | None:
+def step_script(workflow_text: str, step_id: str) -> str | None:
     """The `run:` body of the archive step, found by id rather than by name."""
     try:
         document = yaml.safe_load(workflow_text)
@@ -59,7 +60,7 @@ def archive_script(workflow_text: str) -> str | None:
         return None
     for job in (document.get("jobs") or {}).values():
         for step in job.get("steps") or []:
-            if isinstance(step, dict) and step.get("id") == STEP_ID:
+            if isinstance(step, dict) and step.get("id") == step_id:
                 return step.get("run") or ""
     return None
 
@@ -76,12 +77,11 @@ def strip_comments(script: str) -> str:
 
 
 def check(workflow_text: str) -> list[str]:
-    script = archive_script(workflow_text)
+    script = step_script(workflow_text, STEP_ID)
     if script is None:
         return [
             f"no step with `id: {STEP_ID}` in {WORKFLOW_NAME}. The Linux sherpa "
-            "archive is the only shipping sherpa engine today, and this id is "
-            "what keeps its packaging gated."
+            "archive is a shipping engine, and this id keeps its packaging gated."
         ]
 
     live = strip_comments(script)
@@ -177,6 +177,61 @@ def check(workflow_text: str) -> list[str]:
             "nothing about what shipped"
         )
 
+    try:
+        document = yaml.safe_load(workflow_text)
+        matrix = document["jobs"]["build"]["strategy"]["matrix"]["include"]
+    except (KeyError, TypeError, yaml.YAMLError):
+        matrix = []
+    mac_entry = next(
+        (
+            entry
+            for entry in matrix
+            if isinstance(entry, dict)
+            and entry.get("target") == "aarch64-apple-darwin"
+        ),
+        None,
+    )
+    mac_features = str((mac_entry or {}).get("features", "")).split(",")
+    if "engine-sherpa" not in mac_features:
+        failures.append(
+            "the macOS arm64 release CLI must compile the engine-sherpa loader"
+        )
+
+    mac_script = step_script(workflow_text, MAC_STEP_ID)
+    if mac_script is None:
+        failures.append(
+            f"no step with `id: {MAC_STEP_ID}` in {WORKFLOW_NAME}; the macOS CLI "
+            "needs its in-process plugin beside the binary"
+        )
+        return failures
+
+    mac_live = strip_comments(mac_script)
+    mac_builds_plugin = re.search(
+        r"cd\s+crates/sherpa-plugin\b[^\n]*cargo\s+build", mac_live
+    ) or re.search(
+        r"cargo\s+build[^\n]*--manifest-path[^\n]*crates/sherpa-plugin",
+        mac_live,
+    )
+    if not mac_builds_plugin:
+        failures.append("the macOS sherpa archive must build crates/sherpa-plugin")
+    mac_plugin_variable = re.search(
+        r"plugin=\"[^\n]*libminutes_sherpa\.dylib\"", mac_live
+    )
+    mac_plugin_copy = re.search(
+        r"cp(?:\s+-f)?\s+\"\$plugin\"\s+\"\$out", mac_live
+    )
+    if not (mac_plugin_variable and mac_plugin_copy):
+        failures.append(
+            "the macOS sherpa archive must copy libminutes_sherpa.dylib beside the CLI"
+        )
+    if not re.search(
+        rf"{re.escape(LOADER)}[^\n]*\\[\s\S]*?\$out/libminutes_sherpa\.dylib",
+        mac_live,
+    ):
+        failures.append(
+            f"the macOS sherpa archive must run {LOADER} against its packaged dylib"
+        )
+
     return failures
 
 
@@ -202,6 +257,12 @@ MUTATIONS: list[tuple[str, object]] = [
         '              || { echo "::error::$lib missing from the sherpa archive"; exit 1; }\n',
         "            :\n")),
     ("removes the step id", lambda s: s.replace(f"        id: {STEP_ID}\n", "")),
+    ("removes the macOS step id", lambda s: s.replace(
+        f"        id: {MAC_STEP_ID}\n", "")),
+    ("drops engine-sherpa from macOS arm64", lambda s: s.replace(
+        "features: parakeet,metal,engine-sherpa", "features: parakeet,metal")),
+    ("deletes the macOS plugin copy", lambda s: s.replace(
+        '          cp -f "$plugin" "$out/"\n', "")),
 ]
 
 # Correct alternatives that must NOT be rejected, because a guard that only
