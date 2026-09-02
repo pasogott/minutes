@@ -4,6 +4,19 @@ Minutes has several agent surfaces. Do not add a new agent by copying an existin
 integration wholesale. Pick the smallest surface that matches what the host
 actually supports.
 
+## Install the Claude Code plugin
+
+The repository is a Claude Code plugin marketplace. Add it, then install the
+Minutes plugin:
+
+```bash
+claude plugin marketplace add silverstein/minutes
+claude plugin install minutes@minutes
+```
+
+The plugin starts `npx -y minutes-mcp` automatically, so its Minutes tools are
+available without a separate MCP configuration.
+
 ## Surfaces
 
 | Surface | Use when | Examples |

@@ -29,6 +29,15 @@
   "agents": [
     { "name": "meeting-analyst", "path": "agents/meeting-analyst.md" }
   ],
+  "mcpServers": {
+      "minutes": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "minutes-mcp"
+        ]
+      }
+    },
   "hooks": {
       "SessionStart": [
         {

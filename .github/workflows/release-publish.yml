@@ -342,9 +342,54 @@ jobs:
           publish_crate minutes-cli
           poll_crate minutes-cli
 
+  publish_mcp_registry:
+    name: Publish MCP Registry metadata
+    needs: publish_npm
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install mcp-publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+            | tar xz mcp-publisher
+
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish server metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          publish_log="$(mktemp)"
+          set +e
+          ./mcp-publisher publish 2>&1 | tee "$publish_log"
+          publish_status="${PIPESTATUS[0]}"
+          set -e
+
+          if [ "$publish_status" -eq 0 ]; then
+            rm -f "$publish_log"
+            exit 0
+          fi
+          if grep -Fqi "invalid version: cannot publish duplicate version" "$publish_log"; then
+            echo "MCP Registry already contains this server version; treating this rerun as successful."
+            rm -f "$publish_log"
+            exit 0
+          fi
+          rm -f "$publish_log"
+          exit "$publish_status"
+
   summary:
     name: Registry publish summary
-    needs: [publish_npm, publish_crates, release_readiness]
+    needs: [publish_npm, publish_crates, publish_mcp_registry, release_readiness]
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -361,4 +406,5 @@ jobs:
             echo "- npm: \`minutes-mcp@$VERSION\`"
             echo "- crates.io: \`minutes-core@$VERSION\`"
             echo "- crates.io: \`minutes-cli@$VERSION\`"
+            echo "- MCP Registry: \`io.github.silverstein/minutes@$VERSION\`"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -16,5 +16,11 @@
     "whisper",
     "conversation"
   ],
-  "category": "productivity"
+  "category": "productivity",
+  "mcpServers": {
+    "minutes": {
+      "command": "npx",
+      "args": ["-y", "minutes-mcp"]
+    }
+  }
 }

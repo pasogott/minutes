@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -65,6 +65,12 @@ output:
         version: "0.0.0",
         description: "Compiler drift fixture",
         skills: [],
+        mcpServers: {
+          minutes: {
+            command: "npx",
+            args: ["-y", "minutes-mcp"],
+          },
+        },
       },
       null,
       2,
@@ -82,6 +88,12 @@ test("compile:dry passes clean generated skills and rejects drift", async (t) =>
   const generated = runCompile(repoRoot, false);
   assert.equal(generated.status, 0, generated.stderr);
   assert.match(generated.stdout, /"status":"written"/);
+  const generatedManifest = JSON.parse(
+    await readFile(path.join(repoRoot, ".claude", "plugins", "minutes", "plugin.json"), "utf8"),
+  );
+  assert.deepEqual(generatedManifest.mcpServers, {
+    minutes: { command: "npx", args: ["-y", "minutes-mcp"] },
+  });
 
   const clean = runCompile(repoRoot, true);
   assert.equal(clean.status, 0, clean.stderr);

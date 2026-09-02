@@ -669,6 +669,9 @@ jobs:
       - name: Verify version policy
         run: node scripts/check_version_sync.mjs
 
+      - name: Validate MCP Registry server metadata
+        run: node scripts/validate_server_json.mjs
+
       - name: Verify corpus lease mirror
         run: node scripts/check_corpus_lease_mirror.mjs
 
