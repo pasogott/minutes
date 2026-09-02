@@ -7311,6 +7311,11 @@ struct SetupPlan {
 }
 
 fn setup_plan(explicit_model: Option<&str>) -> SetupPlan {
+    #[cfg(feature = "engine-sherpa")]
+    let plugin_present = minutes_core::sherpa_plugin::plugin_available();
+    #[cfg(not(feature = "engine-sherpa"))]
+    let plugin_present = false;
+
     setup_plan_for(
         explicit_model,
         cfg!(all(
@@ -7318,10 +7323,15 @@ fn setup_plan(explicit_model: Option<&str>) -> SetupPlan {
             target_os = "macos",
             target_arch = "aarch64"
         )),
+        plugin_present,
     )
 }
 
-fn setup_plan_for(explicit_model: Option<&str>, sherpa_auto_available: bool) -> SetupPlan {
+fn setup_plan_for(
+    explicit_model: Option<&str>,
+    sherpa_auto_supported: bool,
+    plugin_present: bool,
+) -> SetupPlan {
     if let Some(model) = explicit_model {
         return SetupPlan {
             whisper_model: model.to_string(),
@@ -7330,11 +7340,17 @@ fn setup_plan_for(explicit_model: Option<&str>, sherpa_auto_available: bool) -> 
         };
     }
 
-    if sherpa_auto_available {
+    if sherpa_auto_supported && plugin_present {
         SetupPlan {
             whisper_model: "tiny".into(),
             install_sherpa: true,
             reason: "this Apple Silicon build includes sherpa, so setup will install Parakeet v3 plus Whisper tiny for live and dictation fallback.".into(),
+        }
+    } else if sherpa_auto_supported {
+        SetupPlan {
+            whisper_model: "small".into(),
+            install_sherpa: false,
+            reason: "this Apple Silicon build includes sherpa but its plugin is missing, so setup will install Whisper small. Install `minutes-macos-arm64-sherpa.tar.gz` or the signed desktop app to get the plugin and Parakeet v3.".into(),
         }
     } else {
         SetupPlan {
@@ -9482,16 +9498,24 @@ life (qmd://life/)
 
     #[test]
     fn setup_plan_keeps_explicit_model_and_platform_defaults() {
-        let explicit = setup_plan_for(Some("medium"), true);
+        let explicit = setup_plan_for(Some("medium"), true, false);
         assert_eq!(explicit.whisper_model, "medium");
         assert!(!explicit.install_sherpa);
 
-        let apple_silicon = setup_plan_for(None, true);
+        let apple_silicon = setup_plan_for(None, true, true);
         assert_eq!(apple_silicon.whisper_model, "tiny");
         assert!(apple_silicon.install_sherpa);
         assert!(apple_silicon.reason.contains("Apple Silicon"));
 
-        let fallback = setup_plan_for(None, false);
+        let plugin_missing = setup_plan_for(None, true, false);
+        assert_eq!(plugin_missing.whisper_model, "small");
+        assert!(!plugin_missing.install_sherpa);
+        assert!(plugin_missing
+            .reason
+            .contains("minutes-macos-arm64-sherpa.tar.gz"));
+        assert!(plugin_missing.reason.contains("desktop app"));
+
+        let fallback = setup_plan_for(None, false, false);
         assert_eq!(fallback.whisper_model, "small");
         assert!(!fallback.install_sherpa);
     }

@@ -502,8 +502,8 @@ pub fn effective_transcription_engine(config: &Config) -> &str {
 }
 
 /// The effective engine and stable, user-facing reason reported by health and
-/// desktop settings. Auto resolution only checks build/platform flags and model
-/// files; it never loads a model or starts the optional engine.
+/// desktop settings. Auto resolution only checks build/platform flags, plugin
+/// presence, and model files; it never loads a plugin or model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TranscriptionEngineResolution<'a> {
     pub engine: &'a str,
@@ -513,6 +513,7 @@ pub struct TranscriptionEngineResolution<'a> {
 fn resolve_auto_transcription_engine(
     sherpa_compiled: bool,
     apple_silicon: bool,
+    plugin_present: bool,
     model_present: bool,
 ) -> TranscriptionEngineResolution<'static> {
     if !sherpa_compiled {
@@ -524,6 +525,11 @@ fn resolve_auto_transcription_engine(
         TranscriptionEngineResolution {
             engine: "whisper",
             reason: "whisper: sherpa auto-selection requires Apple Silicon",
+        }
+    } else if !plugin_present {
+        TranscriptionEngineResolution {
+            engine: "whisper",
+            reason: "whisper: sherpa plugin not found beside the binary — install the macOS sherpa archive or the desktop app",
         }
     } else if !model_present {
         TranscriptionEngineResolution {
@@ -547,6 +553,7 @@ pub fn auto_transcription_engine_resolution(
     resolve_auto_transcription_engine(
         cfg!(feature = "engine-sherpa"),
         cfg!(all(target_os = "macos", target_arch = "aarch64")),
+        sherpa_plugin_present(config),
         crate::sherpa_engine::model_files_present(&crate::sherpa_engine::model_dir(config)),
     )
 }
@@ -562,8 +569,16 @@ pub fn transcription_engine_resolution(config: &Config) -> TranscriptionEngineRe
         "whisper: configured"
     } else if requested.eq_ignore_ascii_case("sherpa") && engine == "sherpa" {
         "sherpa: configured and available"
+    } else if requested.eq_ignore_ascii_case("sherpa") && !cfg!(feature = "engine-sherpa") {
+        "whisper: configured sherpa not compiled"
+    } else if requested.eq_ignore_ascii_case("sherpa") && !sherpa_plugin_present(config) {
+        "whisper: configured sherpa plugin missing"
+    } else if requested.eq_ignore_ascii_case("sherpa")
+        && !crate::sherpa_engine::model_files_present(&crate::sherpa_engine::model_dir(config))
+    {
+        "whisper: configured sherpa model missing"
     } else if requested.eq_ignore_ascii_case("sherpa") {
-        "whisper: configured sherpa unavailable"
+        "whisper: configured sherpa plugin could not be loaded"
     } else if engine == "whisper" {
         "whisper: configured engine unavailable"
     } else {
@@ -1021,10 +1036,22 @@ pub(crate) fn sherpa_selectable(config: &Config) -> bool {
         && sherpa_plugin_unavailable_reason(config).is_none()
 }
 
+#[cfg(feature = "engine-sherpa")]
+pub(crate) fn sherpa_plugin_present(config: &Config) -> bool {
+    crate::sherpa_plugin::plugin_available_with_config(config)
+}
+
+#[cfg(not(feature = "engine-sherpa"))]
+pub(crate) fn sherpa_plugin_present(_config: &Config) -> bool {
+    false
+}
+
 /// Why sherpa is unavailable, phrased for the processing artifact.
 pub(crate) fn sherpa_unavailable_reason(config: &Config) -> &'static str {
     if !cfg!(feature = "engine-sherpa") {
         "this build was compiled without the sherpa engine"
+    } else if !sherpa_plugin_present(config) {
+        "the sherpa plugin is not installed"
     } else if !crate::sherpa_engine::model_files_present(&crate::sherpa_engine::model_dir(config)) {
         "the sherpa model is not installed"
     } else {
@@ -5066,38 +5093,84 @@ mod tests {
     }
 
     #[test]
-    fn auto_engine_resolution_covers_compiled_platform_and_model_table() {
+    fn resolve_auto_engine_covers_compiled_platform_plugin_and_model_table() {
         for sherpa_compiled in [false, true] {
             for apple_silicon in [false, true] {
-                for model_present in [false, true] {
-                    let resolution = resolve_auto_transcription_engine(
-                        sherpa_compiled,
-                        apple_silicon,
-                        model_present,
-                    );
-                    let expected = if !sherpa_compiled {
-                        ("whisper", "whisper: sherpa not compiled")
-                    } else if !apple_silicon {
-                        (
-                            "whisper",
-                            "whisper: sherpa auto-selection requires Apple Silicon",
-                        )
-                    } else if !model_present {
-                        (
-                            "whisper",
-                            "whisper: parakeet model missing — run minutes setup",
-                        )
-                    } else {
-                        ("sherpa", "sherpa: model present")
-                    };
-                    assert_eq!(
-                        (resolution.engine, resolution.reason),
-                        expected,
-                        "compiled={sherpa_compiled} apple_silicon={apple_silicon} model_present={model_present}"
-                    );
+                for plugin_present in [false, true] {
+                    for model_present in [false, true] {
+                        let resolution = resolve_auto_transcription_engine(
+                            sherpa_compiled,
+                            apple_silicon,
+                            plugin_present,
+                            model_present,
+                        );
+                        let expected = if !sherpa_compiled {
+                            ("whisper", "whisper: sherpa not compiled")
+                        } else if !apple_silicon {
+                            (
+                                "whisper",
+                                "whisper: sherpa auto-selection requires Apple Silicon",
+                            )
+                        } else if !plugin_present {
+                            (
+                                "whisper",
+                                "whisper: sherpa plugin not found beside the binary — install the macOS sherpa archive or the desktop app",
+                            )
+                        } else if !model_present {
+                            (
+                                "whisper",
+                                "whisper: parakeet model missing — run minutes setup",
+                            )
+                        } else {
+                            ("sherpa", "sherpa: model present")
+                        };
+                        assert_eq!(
+                            (resolution.engine, resolution.reason),
+                            expected,
+                            "compiled={sherpa_compiled} apple_silicon={apple_silicon} plugin_present={plugin_present} model_present={model_present}"
+                        );
+                    }
                 }
             }
         }
+    }
+
+    #[cfg(feature = "engine-sherpa")]
+    #[test]
+    fn explicit_sherpa_resolution_distinguishes_plugin_and_model_failures() {
+        let _env_lock = crate::test_home_env_lock();
+        let previous = std::env::var_os("MINUTES_SHERPA_PLUGIN");
+        let temp = tempfile::TempDir::new().unwrap();
+        let plugin = temp.path().join("synthetic-sherpa-plugin");
+        let config = Config {
+            transcription: crate::config::TranscriptionConfig {
+                engine: "sherpa".into(),
+                model_path: temp.path().join("models"),
+                ..Config::default().transcription
+            },
+            ..Config::default()
+        };
+
+        std::env::set_var("MINUTES_SHERPA_PLUGIN", temp.path().join("missing-plugin"));
+        let plugin_missing = transcription_engine_resolution(&config);
+        assert_eq!(
+            plugin_missing.reason,
+            "whisper: configured sherpa plugin missing"
+        );
+
+        std::fs::write(&plugin, b"presence is enough for the cheap probe").unwrap();
+        std::env::set_var("MINUTES_SHERPA_PLUGIN", &plugin);
+        let model_missing = transcription_engine_resolution(&config);
+
+        if let Some(previous) = previous {
+            std::env::set_var("MINUTES_SHERPA_PLUGIN", previous);
+        } else {
+            std::env::remove_var("MINUTES_SHERPA_PLUGIN");
+        }
+        assert_eq!(
+            model_missing.reason,
+            "whisper: configured sherpa model missing"
+        );
     }
 
     #[test]

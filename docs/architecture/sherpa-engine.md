@@ -6,10 +6,22 @@ runs parakeet-tdt-0.6b-v3 through the Rust `sherpa-rs` crate in-process, without
 Python and without a separate sidecar binary.
 
 `transcription.engine = "auto"` is the compiled default. On Apple Silicon it
-selects sherpa when the build includes `engine-sherpa` and the Parakeet v3 model
-is installed; otherwise it selects Whisper. Explicit `"whisper"` and `"sherpa"`
-values keep their meaning, and unavailable sherpa requests still fall back to
-Whisper so a recording never breaks.
+selects sherpa when the build includes `engine-sherpa`, the sherpa plugin is
+present, and the Parakeet v3 model is installed; otherwise it selects Whisper.
+Explicit `"whisper"` and `"sherpa"` values keep their meaning, and unavailable
+sherpa requests still fall back to Whisper so a recording never breaks.
+
+## Which install gets Parakeet by default
+
+- The signed desktop app does: the plugin is bundled and signed inside the app.
+- `minutes-macos-arm64-sherpa.tar.gz` does: keep the plugin beside the binary.
+- The bare `minutes-macos-arm64` asset, `cargo install`, and the Homebrew CLI
+  formula do not. They use Whisper until a compatible plugin is placed in a
+  loader search path.
+
+The MCP server's auto-install currently downloads the bare macOS binary, so
+agent-driven installs stay on Whisper for now. A follow-up will switch that
+installer to the sherpa archive.
 
 ## Quick Start (recommended)
 
@@ -82,8 +94,10 @@ minutes setup --sherpa     # downloads the int8 ONNX model + sets engine = "sher
 > rather than the DLL's own directory, so the same trick does not apply there
 > and it needs its own packaging. That is tracked in #645.
 
-On Apple Silicon builds with `engine-sherpa`, plain `minutes setup` downloads
-the four model files plus Whisper tiny for live and dictation fallback.
+On Apple Silicon builds with `engine-sherpa` and a plugin present, plain
+`minutes setup` downloads the four model files plus Whisper tiny for live and
+dictation fallback. Without the plugin it installs Whisper small and explains
+which packaged install includes Parakeet; setup does not download the plugin.
 `minutes setup --sherpa` downloads the four model files (with a size-floor
 integrity check) and writes `transcription.engine = "sherpa"` to your config, so
 no manual edit is needed. If the binary lacks the `engine-sherpa` feature, setup
