@@ -4,7 +4,7 @@ import { ComparePage } from "@/components/compare-page";
 export const metadata: Metadata = {
   title: "Minutes vs Krisp",
   description:
-    "Minutes vs Krisp: Krisp's noise cancellation is genuinely on-device, but its meeting notes run through the cloud and transcripts are stored in Krisp Cloud once notes are enabled. Minutes keeps the entire pipeline on your machine. A sourced, fit-based comparison.",
+    "Krisp's noise cancellation is on-device, but its meeting notes run through the cloud and transcripts sit in Krisp Cloud. Minutes keeps everything local.",
   alternates: {
     canonical: "/compare/krisp-vs-minutes",
   },

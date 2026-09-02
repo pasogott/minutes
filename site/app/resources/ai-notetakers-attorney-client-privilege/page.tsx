@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "AI notetakers and attorney–client privilege",
   description:
-    "Privilege depends on confidentiality, and cloud AI notetakers put a third party inside your client conversations. What ABA Formal Opinion 512 says, the questions to ask any vendor, and why on-device transcription changes the analysis.",
+    "Cloud AI notetakers put a third party inside client conversations. What ABA Formal Opinion 512 says, what to ask a vendor, and why on-device differs.",
   alternates: {
     canonical: "/resources/ai-notetakers-attorney-client-privilege",
   },

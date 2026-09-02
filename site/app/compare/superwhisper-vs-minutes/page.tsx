@@ -4,7 +4,7 @@ import { ComparePage } from "@/components/compare-page";
 export const metadata: Metadata = {
   title: "Minutes vs superwhisper",
   description:
-    "Minutes vs superwhisper: both transcribe on your device, but superwhisper is a polished dictation tool while Minutes is an open-source conversation memory layer for meetings, memos, and agents. A sourced, fit-based comparison.",
+    "Both transcribe on your device. superwhisper is a polished dictation tool; Minutes is an open-source memory layer for meetings, memos, and agents.",
   alternates: {
     canonical: "/compare/superwhisper-vs-minutes",
   },

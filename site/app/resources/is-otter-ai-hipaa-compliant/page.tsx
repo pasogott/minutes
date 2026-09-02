@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "Is Otter.ai HIPAA compliant?",
   description:
-    "Yes — but only on the Enterprise plan with a signed BAA, as of July 2025. Basic, Pro, and Business plans cannot be used for PHI. What that means, and the on-device alternative that removes the BAA question entirely.",
+    "Yes, but only on the Enterprise plan with a signed BAA, as of July 2025. Basic, Pro, and Business cannot be used for PHI. What that means for you.",
   alternates: {
     canonical: "/resources/is-otter-ai-hipaa-compliant",
   },

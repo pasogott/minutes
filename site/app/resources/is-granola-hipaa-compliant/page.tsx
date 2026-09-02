@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "Is Granola HIPAA compliant?",
   description:
-    "No — Granola's own documentation states it is not HIPAA compliant, cannot sign BAAs, and should not be used for PHI. The sourced answer, what Granola does offer, and the on-device alternative for clinical conversations.",
+    "No. Granola's own documentation says it is not HIPAA compliant, cannot sign a BAA, and should not be used for PHI. What Granola offers instead.",
   alternates: {
     canonical: "/resources/is-granola-hipaa-compliant",
   },

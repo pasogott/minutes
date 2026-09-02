@@ -4,7 +4,7 @@ import { ComparePage } from "@/components/compare-page";
 export const metadata: Metadata = {
   title: "Minutes vs MacWhisper",
   description:
-    "Minutes vs MacWhisper: both transcribe locally on your Mac. MacWhisper is the best file-transcription GUI; Minutes is an open-source conversation memory layer for meetings, memos, and agents. A sourced, fit-based comparison.",
+    "Both transcribe locally on your Mac. MacWhisper is the best file-transcription GUI; Minutes is an open-source memory layer for meetings and agents.",
   alternates: {
     canonical: "/compare/macwhisper-vs-minutes",
   },

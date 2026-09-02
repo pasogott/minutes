@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "Legal transcription software: what confidentiality actually requires",
   description:
-    "Choosing transcription software for legal work: when you need certified human transcripts, when software is the right tool, and why on-device processing is the only architecture that keeps privileged audio out of third-party clouds.",
+    "When legal work needs certified human transcripts, when software is right, and why on-device processing keeps privileged audio out of vendor clouds.",
   alternates: {
     canonical: "/resources/legal-transcription-software",
   },

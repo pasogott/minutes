@@ -15,14 +15,14 @@ const posts = [
     date: "2026-07-11",
     title: "whisper.cpp vs parakeet.cpp for local transcription",
     summary:
-      "Real numbers on accuracy and Apple Silicon speed, plus why Minutes currently selects sealed Whisper and safety-gates Parakeet's pathname-only transport.",
+      "Real numbers on accuracy and Apple Silicon speed, plus why Minutes currently selects sealed Whisper and safety-gates Parakeet's pathname-only transport. Read this if you are choosing a local transcription engine, or wondering why the faster one is not the default.",
   },
   {
     slug: "governance-built-in-not-retrofitted",
     date: "2026-06-10",
     title: "Governance built in, not retrofitted",
     summary:
-      "a16z says everything at work will be recorded and the controls will get bolted on afterward. The retrofit assumption breaks the moment the record's reader is an agent.",
+      "a16z says everything at work will be recorded and the controls will get bolted on afterward. The retrofit assumption breaks the moment the record's reader is an agent. The essay sets out what consent, authority, and provenance have to look like inside the file itself.",
   },
 ] as const;
 
@@ -59,6 +59,16 @@ export default function WritingIndex() {
         <p className="mt-4 max-w-[560px] text-[15px] leading-7 text-[var(--text-secondary)]">
           Essays on local-first conversation memory, agent-readable records,
           and where the recorded workplace is heading.
+        </p>
+        <p className="mt-4 max-w-[560px] text-[15px] leading-7 text-[var(--text-secondary)]">
+          These are longer and more opinionated than the{" "}
+          <a href="/resources" className="text-[var(--accent)] hover:underline">
+            resource guides
+          </a>
+          . A resource answers one question with sources. An essay argues for a
+          position we hold about how recorded conversations should work, using
+          the numbers and design decisions from building Minutes as evidence.
+          Each one is dated, and we revise rather than quietly rewrite.
         </p>
       </header>
 

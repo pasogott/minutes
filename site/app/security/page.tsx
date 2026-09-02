@@ -5,7 +5,7 @@ import { SectionLabel } from "@/components/section-label";
 export const metadata: Metadata = {
   title: "Security — audio that never leaves your device",
   description:
-    "Minutes' security model is architectural, not contractual: capture, transcription, diarization, and storage all run on your own machine. No vendor cloud to trust, breach, or subpoena — and it's open source, so you can verify every claim in code.",
+    "Capture, transcription, diarization, and storage run on your own machine. No vendor cloud to trust or subpoena, and the code is open to check.",
   alternates: {
     canonical: "/security",
   },

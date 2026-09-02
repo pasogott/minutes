@@ -7,7 +7,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "Local dictation on macOS: the complete guide",
   description:
-    "Every way to dictate on a Mac without sending your voice to a cloud: built-in macOS dictation, superwhisper, MacWhisper, and Minutes — what each is for, and how to pick.",
+    "Every way to dictate on a Mac without sending your voice to a cloud: built-in dictation, superwhisper, MacWhisper, and Minutes, and how to pick.",
   alternates: {
     canonical: "/resources/local-dictation-macos",
   },

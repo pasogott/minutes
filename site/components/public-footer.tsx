@@ -27,7 +27,7 @@ export function PublicFooter() {
           Compare
         </a>
         <span aria-hidden="true">·</span>
-        <a href="/resources/best-meeting-tools-for-claude-code-and-codex" className="hover:text-[var(--accent)]">
+        <a href="/resources" className="hover:text-[var(--accent)]">
           Resources
         </a>
       </p>

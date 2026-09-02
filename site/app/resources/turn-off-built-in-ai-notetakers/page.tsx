@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "How to turn off built-in AI notetakers in Zoom and Teams",
   description:
-    "Inside their own platform there is no bot to eject, so the controls are settings. The exact Zoom and Teams admin paths, the in-meeting stop most guides omit, the Teams setting that is only a default rather than an enforcement, and why your Zoom toggle is grayed out.",
+    "The exact Zoom and Teams admin paths for built-in AI notetakers, the in-meeting stop most guides omit, and why your Zoom toggle is grayed out.",
   alternates: {
     canonical: "/resources/turn-off-built-in-ai-notetakers",
   },

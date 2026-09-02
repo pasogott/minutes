@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "Is Fireflies.ai HIPAA compliant?",
   description:
-    "Yes — but only on the Enterprise plan with Private Storage enabled AND a signed BAA, all three at once. Free, Pro, and Business plans are not HIPAA-covered. The sourced answer, plus the on-device alternative that removes the BAA question.",
+    "Yes, but only on Enterprise with Private Storage and a signed BAA, all three at once. Free, Pro, and Business are not HIPAA-covered. Sourced answer.",
   alternates: {
     canonical: "/resources/is-fireflies-ai-hipaa-compliant",
   },

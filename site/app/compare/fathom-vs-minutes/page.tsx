@@ -4,7 +4,7 @@ import { ComparePage } from "@/components/compare-page";
 export const metadata: Metadata = {
   title: "Minutes vs Fathom",
   description:
-    "Minutes vs Fathom: Fathom offers a generous free tier and now bot-free capture, but every recording is processed and stored in its US cloud. Minutes keeps transcription and storage on your own device. A sourced, fit-based comparison.",
+    "Fathom has a generous free tier and bot-free capture, but every recording lives in its US cloud. Minutes keeps transcription and storage on your device.",
   alternates: {
     canonical: "/compare/fathom-vs-minutes",
   },

@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "How to remove AI notetaker bots from your meetings",
   description:
-    "Step-by-step: stop Otter, Fireflies, and other AI bots from joining your Zoom, Google Meet, and Teams calls — yours and other people's — plus the capture architecture that never needed a bot in the first place.",
+    "Stop Otter, Fireflies, and other AI bots joining your Zoom, Meet, and Teams calls, including other people's bots, and the capture that needs no bot.",
   alternates: {
     canonical: "/resources/remove-ai-notetaker-bots-from-meetings",
   },

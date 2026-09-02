@@ -1,4 +1,4 @@
-# The best local speech-to-text apps (2026)
+# Local speech to text: the best on-device apps (2026)
 
 Last reviewed: 2026-07-11
 

@@ -8,7 +8,7 @@ import { RelatedResources } from "@/components/related-resources";
 export const metadata: Metadata = {
   title: "How to remove Otter AI from Zoom",
   description:
-    "Remove Otter Notetaker from a Zoom call immediately, even if you are not the host, then stop it coming back. Includes the auto-join setting that silently ignores your change, and what you can actually do about someone else's bot.",
+    "Remove Otter Notetaker from a Zoom call now, even if you are not the host, then stop it coming back. Includes the auto-join setting that ignores you.",
   alternates: {
     canonical: "/resources/remove-otter-ai-from-zoom",
   },
