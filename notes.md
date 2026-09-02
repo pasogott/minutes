@@ -25,7 +25,9 @@ The desktop app updates itself: open Minutes and it pulls v0.20.0 on next launch
 
 ## Claude Code plugin
 
-This release also updates the Minutes plugin (Microsoft 365 / Outlook calendar source for `/minutes-prep`, thanks to the new calendar integration). Plugin updates don't auto-deliver — refresh with:
+This release also updates the Minutes plugin. A new `/minutes-x1-closeout` skill can turn an explicit meeting decision into a reviewable closeout proposal for the matching X1 work thread. It doesn't close anything on its own. The person in X1 reviews the proposed outcome and decides whether to commit it.
+
+Plugin updates don't auto-deliver. Refresh with:
 
 ```
 /plugin marketplace update minutes

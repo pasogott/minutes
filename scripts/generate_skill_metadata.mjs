@@ -12,7 +12,16 @@ const outputPath = join(repoRoot, ".claude", "plugins", "minutes", "skill-metada
 
 function inferCategory(skillName) {
   if (["minutes-record", "minutes-note", "minutes-list", "minutes-recap", "minutes-cleanup", "minutes-verify", "minutes-setup"].includes(skillName)) return "capture";
-  if (["minutes-brief", "minutes-prep", "minutes-debrief", "minutes-weekly"].includes(skillName)) return "lifecycle";
+  if (
+    [
+      "minutes-brief",
+      "minutes-prep",
+      "minutes-debrief",
+      "minutes-weekly",
+      "minutes-x1-closeout",
+    ].includes(skillName)
+  )
+    return "lifecycle";
   if (["minutes-tag", "minutes-mirror"].includes(skillName)) return "coaching";
   if (["minutes-ideas", "minutes-ingest", "minutes-lint"].includes(skillName)) return "knowledge";
   if (["minutes-search", "minutes-graph"].includes(skillName)) return "intelligence";

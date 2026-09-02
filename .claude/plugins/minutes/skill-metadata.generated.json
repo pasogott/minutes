@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-14T16:01:52.068Z",
+  "generated_at": "2026-09-02T17:52:02.976Z",
   "source": {
     "plugin_json": ".claude/plugins/minutes/plugin.json",
     "packs_dir": ".claude/plugins/minutes/packs"
@@ -336,6 +336,32 @@
       "pack_ids": [],
       "role_fit": [],
       "source_path": "skills/minutes-release-notes/SKILL.md"
+    },
+    {
+      "skill_name": "minutes-mcp-recall",
+      "title": "mcp recall",
+      "description": "Route meeting-recall questions to the right Minutes MCP tool.",
+      "category": "other",
+      "surface_support": [
+        "claude-code-plugin"
+      ],
+      "installable_via": "claude-code-plugin",
+      "pack_ids": [],
+      "role_fit": [],
+      "source_path": "skills/minutes-mcp-recall/SKILL.md"
+    },
+    {
+      "skill_name": "minutes-x1-closeout",
+      "title": "x1 closeout",
+      "description": "Prepare a sourced Minutes meeting outcome for human-governed closeout of existing X1 work. Use when the user wants a meeting decision or commitment to close, defer, escalate, or retire a specific X1 coordination thread. Never use it to infer settlement, move money, contact anyone, or close X1 work automatically.",
+      "category": "lifecycle",
+      "surface_support": [
+        "claude-code-plugin"
+      ],
+      "installable_via": "claude-code-plugin",
+      "pack_ids": [],
+      "role_fit": [],
+      "source_path": "skills/minutes-x1-closeout/SKILL.md"
     }
   ]
 }
