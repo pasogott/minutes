@@ -4,20 +4,21 @@
  * MCP Server Integration Tests
  *
  * Tests that the MCP server:
- * 1. Has all expected tools registered
- * 2. Tool schemas match expectations
- * 3. Status tool returns valid JSON
- * 4. Search tool handles empty queries
- * 5. List tool returns array
- * 6. Path validation works on get_meeting
- * 7. Path validation works on process_audio
- * 8. resummarize_meeting is present in the built server with its full schema
- * 9. resummarize_meeting's path guard (validatePathInDirectory) rejects outside paths
+ * 1. Negotiates the Claude Desktop/Code protocol version over real stdio
+ * 2. Has all expected tools registered
+ * 3. Tool schemas match expectations
+ * 4. Status tool returns valid JSON
+ * 5. Search tool handles empty queries
+ * 6. List tool returns array
+ * 7. Path validation works on get_meeting
+ * 8. Path validation works on process_audio
+ * 9. resummarize_meeting is present in the built server with its full schema
+ * 10. resummarize_meeting's path guard (validatePathInDirectory) rejects outside paths
  *
  * Run: node crates/mcp/test/mcp_tools_test.mjs
  */
 
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -93,6 +94,8 @@ function minutesCli(args) {
 
 console.log("MCP Server Integration Tests\n");
 
+const CLAUDE_DESKTOP_PROTOCOL_VERSION = "2025-11-25";
+
 // ── Test 0: nonzero CLI exits are never converted to empty success ──
 test("minutes CLI helper propagates nonzero exits", () => {
   try {
@@ -106,6 +109,61 @@ test("minutes CLI helper propagates nonzero exits", () => {
       `expected explicit CLI exit failure, got: ${error.message}`
     );
   }
+});
+
+// ── Test 0b: real Claude Desktop-compatible MCP initialize negotiation ──
+test("stdio initialize negotiates the Claude Desktop protocol version", () => {
+  const mcpDir = join(import.meta.dirname, "..");
+  const serverPath = join(mcpDir, "dist", "index.js");
+  const initialize = {
+    method: "initialize",
+    params: {
+      protocolVersion: CLAUDE_DESKTOP_PROTOCOL_VERSION,
+      capabilities: {
+        extensions: {
+          "io.modelcontextprotocol/ui": {
+            mimeTypes: ["text/html;profile=mcp-app"],
+          },
+        },
+      },
+      clientInfo: {
+        name: "claude-desktop-compat-test",
+        version: "1.3109.0",
+      },
+    },
+    jsonrpc: "2.0",
+    id: 0,
+  };
+
+  const child = spawnSync(process.execPath, [serverPath], {
+    cwd: mcpDir,
+    encoding: "utf-8",
+    input: `${JSON.stringify(initialize)}\n`,
+    timeout: 15000,
+    env: { ...process.env, RUST_LOG: "error" },
+  });
+
+  assert(!child.error, `initialize process failed: ${child.error?.message}`);
+  assertEqual(
+    child.status,
+    0,
+    `initialize process exited ${child.status}: ${child.stderr.trim()}`
+  );
+  const responses = child.stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+  const response = responses.find((message) => message.id === initialize.id);
+  assert(response, "server must return an initialize response");
+  assert(!response.error, `initialize returned an error: ${JSON.stringify(response.error)}`);
+
+  const protocolVersion = response.result?.protocolVersion;
+  assertEqual(
+    protocolVersion,
+    CLAUDE_DESKTOP_PROTOCOL_VERSION,
+    "server must negotiate the protocol version used by Claude Desktop/Code"
+  );
+  console.log(`  Negotiated MCP protocolVersion: ${protocolVersion}`);
 });
 
 // ── Test 1: minutes status returns valid JSON ──
