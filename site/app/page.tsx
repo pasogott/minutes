@@ -119,7 +119,7 @@ const capabilityColumns = [
 // Competitor cells reflect public docs spot-checked in August 2026. Refresh quarterly.
 const comparisons = [
   ["Local transcription", "No (cloud)", "No (cloud)", "Yes", "Yes"],
-  ["Open source", "No", "No", "GPL-3.0", "MIT"],
+  ["Open source", "No", "No", "MIT", "MIT"],
   ["Free", "Freemium", "Freemium", "Free", "Free"],
   ["Agent surface", "Hosted MCP", "Hosted integrations", "Local app", `Files + ${MINUTES_MCP_TOOL_COUNT} MCP tools`],
   ["Cross-meeting intelligence", "Cloud chat", "Cloud chat", "No", "Policy-safe search"],
@@ -699,7 +699,7 @@ export default function Home() {
                   Otter.ai
                 </th>
                 <th className="p-3 text-left font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                  Hyprnote
+                  Anarlog
                 </th>
                 <th className="p-3 text-left font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--accent)]">
                   minutes
@@ -752,7 +752,7 @@ export default function Home() {
             Fathom
           </a>
           <a href="/compare/hyprnote-vs-minutes" className="hover:text-[var(--text)]">
-            Hyprnote
+            Anarlog
           </a>
         </div>
       </section>
