@@ -37,7 +37,7 @@ const SOLO_MAX_CLIPPING_FRACTION: f32 = 0.05;
 // ──────────────────────────────────────────────────────────────
 
 /// Resolve the model version tag for the currently configured embedding model.
-/// Falls back to the cam++-lm version string if the config value is unrecognized.
+/// Falls back to the CAM++ version string if the legacy override is unrecognized.
 pub fn model_version(config: &Config) -> &'static str {
     crate::diarize::embedding_model_for_config(config).version
 }

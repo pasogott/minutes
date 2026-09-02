@@ -1,0 +1,20 @@
+[
+  {
+    "id": "demo-continuous",
+    "audio": "crates/assets/demo.wav",
+    "duration": 10.625813,
+    "segments": [
+      { "speaker": "REFERENCE_1", "start": 0.0, "end": 10.625813 }
+    ]
+  },
+  {
+    "id": "three-utterances",
+    "audio": "crates/assets/parity_three_utterances.wav",
+    "duration": 7.1,
+    "segments": [
+      { "speaker": "REFERENCE_1", "start": 0.2, "end": 1.7 },
+      { "speaker": "REFERENCE_1", "start": 2.0, "end": 3.5 },
+      { "speaker": "REFERENCE_1", "start": 4.0, "end": 5.5 }
+    ]
+  }
+]

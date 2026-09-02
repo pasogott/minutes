@@ -388,6 +388,10 @@ pub const VALID_PARAKEET_MODELS: &[&str] = &["tdt-ctc-110m", "tdt-600m"];
 pub struct DiarizationConfig {
     pub engine: String,
     pub model_path: PathBuf,
+    /// Diarization model set: "legacy" (default) or "community-1".
+    /// Kept separate from `embedding_model` so opting into community-1
+    /// selects its compatible segmentation + embedding pair atomically.
+    pub model: String,
     /// Cosine similarity threshold for speaker matching (0.0–1.0).
     /// Lower values merge more aggressively; higher values create more speakers.
     pub threshold: f32,
@@ -1408,6 +1412,7 @@ impl Default for DiarizationConfig {
         Self {
             engine: "auto".into(),
             model_path: minutes_dir().join("models").join("diarization"),
+            model: "legacy".into(),
             threshold: 0.4,
             embedding_model: "cam++".into(),
             stem_correlation_threshold: 0.85,
@@ -2043,6 +2048,7 @@ mod tests {
             "tdt-600m.tokenizer.vocab"
         );
         assert_eq!(config.diarization.engine, "auto");
+        assert_eq!(config.diarization.model, "legacy");
         assert_eq!(config.summarization.engine, "none");
         assert!(!config.copilot.enabled);
         assert_eq!(config.copilot.surface, "tui");

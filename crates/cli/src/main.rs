@@ -931,7 +931,7 @@ enum Commands {
 
     /// Download whisper model and set up minutes
     Setup {
-        /// Model to download: tiny, base, small, medium, large-v3
+        /// Model to download: a Whisper model, or legacy/community-1 with --diarization
         #[arg(short, long, default_value = "small")]
         model: String,
 
@@ -7316,7 +7316,7 @@ fn cmd_setup(model: &str, list: bool, diarization: bool) -> Result<()> {
     }
 
     if diarization {
-        return cmd_setup_diarization();
+        return cmd_setup_diarization(model);
     }
 
     let valid_models = ["tiny", "base", "small", "medium", "large-v3"];
@@ -7533,23 +7533,37 @@ fn cmd_setup_demo() -> Result<()> {
     Ok(())
 }
 
-fn cmd_setup_diarization() -> Result<()> {
+fn cmd_setup_diarization(requested_model: &str) -> Result<()> {
     use minutes_core::diarize;
 
-    let config = Config::load();
+    let mut config = Config::load();
+    let selected_model = if requested_model == "small" {
+        config.diarization.model.clone()
+    } else {
+        requested_model.to_string()
+    };
+    let model_info = diarize::diarization_model_info(&selected_model).ok_or_else(|| {
+        anyhow::anyhow!(
+            "unknown diarization model: {}. Available: {}",
+            selected_model,
+            diarize::DIARIZATION_MODEL_NAMES.join(", ")
+        )
+    })?;
+    config.diarization.model = selected_model;
     let emb_info = diarize::embedding_model_for_config(&config);
     let model_dir = &config.diarization.model_path;
     std::fs::create_dir_all(model_dir)?;
 
+    eprintln!("Diarization model set: {}", model_info.name);
     eprintln!(
         "Embedding model: {} ({})",
-        config.diarization.embedding_model, emb_info.filename
+        emb_info.version, emb_info.filename
     );
 
     let models: [(&str, &str, &str); 2] = [
         (
-            diarize::SEGMENTATION_MODEL,
-            diarize::SEGMENTATION_MODEL_URL,
+            model_info.segmentation_filename,
+            model_info.segmentation_url,
             "segmentation",
         ),
         (emb_info.filename, emb_info.url, "speaker embedding"),
@@ -7581,7 +7595,10 @@ fn cmd_setup_diarization() -> Result<()> {
     eprintln!("\nTo enable speaker diarization, add to ~/.config/minutes/config.toml:");
     eprintln!("  [diarization]");
     eprintln!("  engine = \"pyannote-rs\"");
-    eprintln!("  # embedding_model = \"cam++-lm\"  # or \"cam++\" for the lighter original");
+    eprintln!("  model = \"{}\"", model_info.name);
+    if model_info.name == diarize::DIARIZATION_MODEL_LEGACY {
+        eprintln!("  # embedding_model = \"cam++-lm\"  # or \"cam++\" for the lighter original");
+    }
 
     Ok(())
 }
