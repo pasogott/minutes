@@ -324,6 +324,23 @@
     "userInvocable": true
   },
   {
+    "name": "minutes-x1-closeout",
+    "displayName": "Minutes to X1 Closeout",
+    "category": "Lifecycle",
+    "shortDescription": "Prepare a meeting-sourced closeout for governed review in X1.",
+    "description": "Prepare a sourced Minutes meeting outcome for human-governed closeout of existing X1 work. Use when the user wants a meeting decision or commitment to close, defer, escalate, or retire a specific X1 coordination thread. Never use it to infer settlement, move money, contact anyone, or close X1 work automatically.",
+    "bestFor": "Turn an explicit meeting outcome into a sourced X1 closeout proposal without letting the agent close the work.",
+    "example": "/minutes-x1-closeout capital call review",
+    "triggers": [
+      "use this meeting to close the X1 thread",
+      "propose an X1 closeout from my meeting",
+      "mark the X1 work resolved from Minutes",
+      "hand this meeting outcome to X1"
+    ],
+    "phase": null,
+    "userInvocable": true
+  },
+  {
     "name": "minutes-weekly",
     "displayName": "Minutes Weekly",
     "category": "Lifecycle",

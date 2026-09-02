@@ -1,7 +1,7 @@
 {
   "name": "minutes",
-  "version": "0.21.0",
-  "description": "Conversation memory for AI assistants — record, transcribe, search meetings and voice memos. 23 skills for the full meeting lifecycle: brief → prep → record → Coach → live sidekick → tag → debrief → mirror → weekly → graph → video-review.",
+  "version": "0.21.1",
+  "description": "Conversation memory for AI assistants: record, transcribe, search meetings and voice memos. 24 skills for the full meeting lifecycle, including a governed Minutes to X1 closeout handoff.",
   "skills": [
     { "name": "minutes-record", "path": "skills/minutes-record/SKILL.md" },
     { "name": "minutes-search", "path": "skills/minutes-search/SKILL.md" },
@@ -25,7 +25,8 @@
     { "name": "minutes-copilot", "path": "skills/minutes-copilot/SKILL.md" },
     { "name": "minutes-live-sidekick", "path": "skills/minutes-live-sidekick/SKILL.md" },
     { "name": "minutes-release-notes", "path": "skills/minutes-release-notes/SKILL.md" },
-    { "name": "minutes-mcp-recall", "path": "skills/minutes-mcp-recall/SKILL.md" }
+    { "name": "minutes-mcp-recall", "path": "skills/minutes-mcp-recall/SKILL.md" },
+    { "name": "minutes-x1-closeout", "path": "skills/minutes-x1-closeout/SKILL.md" }
   ],
   "agents": [
     { "name": "meeting-analyst", "path": "agents/meeting-analyst.md" }

@@ -205,6 +205,10 @@ Workflow-level skills that wrap MCP tools into operator motions. Install in Clau
   - Description: Interactive meeting prep from your conversation history.
   - Example: `/minutes-prep Alex`
   - Docs: https://useminutes.app/for-agents#minutes-prep
+- `/minutes-x1-closeout` — Turn an explicit meeting outcome into a sourced X1 closeout proposal without letting the agent close the work.
+  - Description: Prepare a meeting-sourced closeout for governed review in X1.
+  - Example: `/minutes-x1-closeout capital call review`
+  - Docs: https://useminutes.app/for-agents#minutes-x1-closeout
 - `/minutes-weekly` — See weekly themes, stale commitments, and what deserves attention next.
   - Description: Weekly meeting synthesis — themes, decision arcs, stale commitments, and what deserves your attention next week.
   - Example: `/minutes-weekly`
