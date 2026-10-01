@@ -14095,15 +14095,19 @@ mod tests {
     }
 
     #[test]
-    fn recall_terminal_input_editing_fails_closed_before_meeting_context() {
+    fn recall_terminal_input_holds_only_known_empty_lines_before_meeting_context() {
         let html = include_str!("../../src/index.html");
         assert!(html.contains("let recallTerminalInputReliable = true;"));
         assert!(html.contains("recallTerminalInputReliable = false;"));
+        // An edited line is sent (a leading "/" as an account command, else as
+        // a question with context); only a line known to be empty is held.
+        assert!(html
+            .contains("recallTerminalContextPending && !question && recallTerminalInputReliable"));
         assert!(html.contains(
-            "recallTerminalContextPending && (!question || !recallTerminalInputReliable)"
+            "recallTerminalContextPending && !isAccountCommand && (question || !recallTerminalInputReliable)"
         ));
         // General mode has no meeting path but still owes its first question
-        // the same fail-closed input checks before any context is written.
+        // the same provider-verified preparation before any context is written.
         assert!(
             html.contains("await invoke('cmd_prepare_recall_terminal_meeting', { meetingPath });")
         );
