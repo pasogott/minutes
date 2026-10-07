@@ -15,9 +15,8 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # Incremental compilation data is per-machine and never reused across CI
-  # runs, but it went into every cached target/ and pushed main's caches past
-  # the repository's 10 GB limit. The -noincr cache keys below start clean.
+  # Standard for CI: incremental data is never reused between runs. It did
+  # not measurably shrink the cached target/ directories (#1109).
   CARGO_INCREMENTAL: "0"
 
 jobs:
@@ -442,6 +441,10 @@ jobs:
     # whisper.cpp / ort / pyannote-rs are vanishingly rare and the time savings
     # (~5 min vs ~15 min cold) compound across every PR. release-cli.yml still
     # does the release build at tag time as the final gate.
+    #
+    # Deliberately uncached. Its 1.2 GB entry pushed main's caches past the
+    # repository's 10 GB limit, and a cold debug build still finishes long
+    # before the Windows test job, which sets the wall-clock time.
     name: Build CLI (ubuntu-latest, default features)
     needs: changes
     if: needs.changes.outputs.rust == 'true'
@@ -468,24 +471,6 @@ jobs:
           .github/scripts/apt-install.sh \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      # Per-image cache scope (ImageOS + ImageVersion); see the test job comment.
-      # These are runner-injected vars absent from the ${{ env }} context, so we
-      # expose the value as a step output for the cache key below.
-      - name: Resolve runner image for cache scope
-        id: runner-image
-        shell: bash
-        run: echo "scope=${ImageOS:-noimage}-${ImageVersion:-noversion}" >> "$GITHUB_OUTPUT"
-
-      - name: Restore cargo cache
-        id: cargo-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-${{ steps.runner-image.outputs.scope }}-cli-fullbuild-debug-noincr-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Build CLI debug (whisper + diarize)
         run: cargo build -p minutes-cli
 
@@ -494,18 +479,6 @@ jobs:
 
       - name: Check Linux desktop capture-relay + window contract
         run: cargo check -p minutes-app --tests
-
-      - name: Save cargo cache
-        # Only main saves. PRs restore main's entry and never write their own,
-        # which used to fill the 10 GB cache and evict main's entries within hours.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
   desktop_windows:
     name: Desktop App Installer (windows-latest)
