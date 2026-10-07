@@ -87,6 +87,9 @@ jobs:
               - 'rust-toolchain.toml'
               # The Windows desktop installer job installs the Tauri CLI with this.
               - '.github/scripts/install-tauri-cli.sh'
+              # This file defines the Rust jobs and their caches, so editing it
+              # has to run them, and the main push that lands it seeds the caches.
+              - '.github/workflows/ci.yml'
               # Workspace lint policy (disallowed-methods). `cargo clippy --all
               # -- -D warnings` runs only inside the filtered test job, so
               # without this a PR editing lint policy skipped every Rust job and
@@ -143,8 +146,9 @@ jobs:
         shell: bash
         run: echo "scope=${ImageOS:-noimage}-${ImageVersion:-noversion}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache cargo
-        uses: actions/cache@v6
+      - name: Restore cargo cache
+        id: cargo-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry
@@ -353,6 +357,18 @@ jobs:
         if: runner.os == 'macOS'
         run: cargo check -p minutes-app --tests
 
+      - name: Save cargo cache
+        # Only main saves. PRs restore main's entry and never write their own,
+        # which used to fill the 10 GB cache and evict main's entries within hours.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
   install:
     name: Install CLI (${{ matrix.os }})
     needs: changes
@@ -381,8 +397,9 @@ jobs:
         shell: bash
         run: echo "scope=${ImageOS:-noimage}-${ImageVersion:-noversion}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache cargo
-        uses: actions/cache@v6
+      - name: Restore cargo cache
+        id: cargo-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry
@@ -398,6 +415,18 @@ jobs:
 
       - name: Verify minutes --version
         run: minutes --version
+
+      - name: Save cargo cache
+        # Only main saves. PRs restore main's entry and never write their own,
+        # which used to fill the 10 GB cache and evict main's entries within hours.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
   linux_full_build:
     # Catches whisper+Linux regressions at PR time instead of waiting for the
@@ -443,8 +472,9 @@ jobs:
         shell: bash
         run: echo "scope=${ImageOS:-noimage}-${ImageVersion:-noversion}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache cargo
-        uses: actions/cache@v6
+      - name: Restore cargo cache
+        id: cargo-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry
@@ -460,6 +490,18 @@ jobs:
 
       - name: Check Linux desktop capture-relay + window contract
         run: cargo check -p minutes-app --tests
+
+      - name: Save cargo cache
+        # Only main saves. PRs restore main's entry and never write their own,
+        # which used to fill the 10 GB cache and evict main's entries within hours.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
   desktop_windows:
     name: Desktop App Installer (windows-latest)
@@ -480,8 +522,9 @@ jobs:
         shell: bash
         run: echo "scope=${ImageOS:-noimage}-${ImageVersion:-noversion}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache cargo
-        uses: actions/cache@v6
+      - name: Restore cargo cache
+        id: cargo-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry
@@ -498,8 +541,9 @@ jobs:
             target/debug/build/knf-rs-sys-* \
             target/release/build/knf-rs-sys-*
 
-      - name: Cache ONNX Runtime binaries
-        uses: actions/cache@v6
+      - name: Restore ONNX Runtime binaries cache
+        id: ort-cache
+        uses: actions/cache/restore@v6
         with:
           path: ~/AppData/Local/dfbin
           key: ${{ runner.os }}-${{ steps.runner-image.outputs.scope }}-ort-${{ hashFiles('**/Cargo.lock') }}
@@ -576,6 +620,27 @@ jobs:
             throw "minutes-app.exe imports runtime DLLs that are not staged: $($missing -join ', '). Add them to RUNTIME_DLLS in tauri/src-tauri/build.rs and to the release packaging lists (#657)."
           }
           Write-Host 'every runtime import is staged for packaging'
+
+      - name: Save cargo cache
+        # Only main saves. PRs restore main's entry and never write their own,
+        # which used to fill the 10 GB cache and evict main's entries within hours.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
+      - name: Save ONNX Runtime binaries cache
+        # Only main saves. PRs restore main's entry and never write their own,
+        # which used to fill the 10 GB cache and evict main's entries within hours.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.ort-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/AppData/Local/dfbin
+          key: ${{ steps.ort-cache.outputs.cache-primary-key }}
 
   mcp:
     name: MCP Server
