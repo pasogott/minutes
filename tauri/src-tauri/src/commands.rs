@@ -13619,6 +13619,35 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
+    fn live_captures_both_sides_when_native_call_capture_is_usable() {
+        use minutes_core::macos_permissions::MacPermissionStatus;
+        let available = call_capture::CallCaptureAvailability::Available {
+            backend: "screencapturekit-helper".into(),
+        };
+        for status in [
+            MacPermissionStatus::Granted,
+            MacPermissionStatus::NotDetermined,
+            MacPermissionStatus::StaleOrRestartNeeded,
+        ] {
+            assert!(live_capture_plan(&available, status).both_sides);
+        }
+        let denied = live_capture_plan(&available, MacPermissionStatus::Denied);
+        assert!(!denied.both_sides);
+        assert!(denied.reason.unwrap().contains("Screen Recording"));
+    }
+
+    #[test]
+    fn live_falls_back_to_microphone_when_call_capture_is_unavailable() {
+        use minutes_core::macos_permissions::MacPermissionStatus;
+        let unavailable = call_capture::CallCaptureAvailability::Unavailable {
+            detail: "Bundled native call helper is missing from the app bundle.".into(),
+        };
+        let plan = live_capture_plan(&unavailable, MacPermissionStatus::Granted);
+        assert!(!plan.both_sides);
+        assert!(plan.reason.unwrap().contains("helper"));
+    }
+
+    #[test]
     fn dictation_latency_target_classes_are_coarse() {
         let target = |bundle_id: &str| crate::text_insertion::ActiveTargetContext {
             platform: "macos".into(),
@@ -21733,6 +21762,62 @@ pub fn cmd_start_live_transcript(
     }
 
     Ok(())
+}
+
+/// How Go Live should capture. Standalone Live hears one microphone only, so
+/// on a call it misses the other side entirely when the call plays through
+/// headphones (#1110). When native call capture is usable, Go Live records
+/// the microphone and this Mac's audio instead, with the live transcript on.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveCapturePlan {
+    pub both_sides: bool,
+    pub reason: Option<String>,
+}
+
+fn live_capture_plan(
+    availability: &call_capture::CallCaptureAvailability,
+    screen_recording: minutes_core::macos_permissions::MacPermissionStatus,
+) -> LiveCapturePlan {
+    use minutes_core::macos_permissions::MacPermissionStatus;
+    match availability {
+        call_capture::CallCaptureAvailability::Available { .. } => {
+            if screen_recording == MacPermissionStatus::Denied {
+                LiveCapturePlan {
+                    both_sides: false,
+                    reason: Some(
+                        "Minutes needs Screen Recording permission to capture call audio. Grant it in System Settings > Privacy & Security > Screen Recording.".into(),
+                    ),
+                }
+            } else {
+                LiveCapturePlan {
+                    both_sides: true,
+                    reason: None,
+                }
+            }
+        }
+        call_capture::CallCaptureAvailability::PermissionRequired { detail }
+        | call_capture::CallCaptureAvailability::Unavailable { detail }
+        | call_capture::CallCaptureAvailability::Unsupported { detail } => LiveCapturePlan {
+            both_sides: false,
+            reason: Some(detail.clone()),
+        },
+    }
+}
+
+/// Whether a stopping Live session still owns capture. Go Live and the
+/// automatic switch wait for this before starting the both-sides recording.
+#[tauri::command]
+pub fn cmd_capture_owner_pid() -> Option<u32> {
+    minutes_core::copilot::current_capture_owner_pid()
+}
+
+#[tauri::command]
+pub fn cmd_live_capture_plan() -> LiveCapturePlan {
+    live_capture_plan(
+        &call_capture::availability(),
+        minutes_core::macos_permissions::screen_recording_status(),
+    )
 }
 
 #[tauri::command]

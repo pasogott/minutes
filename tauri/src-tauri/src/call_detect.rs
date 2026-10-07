@@ -66,6 +66,9 @@ pub struct CallDetector {
     recent_teams_web_until: Mutex<Option<BrowserSticky>>,
     /// Log mic-gate transitions once instead of spamming every poll.
     last_mic_live: Mutex<Option<bool>>,
+    /// Set once a poll is skipped because Live or dictation holds the mic
+    /// without input attribution, so the skip is logged once per stretch.
+    self_audio_skip_logged: AtomicBool,
 }
 
 /// Payload emitted to the frontend when a call is detected.
@@ -147,6 +150,43 @@ enum NoCallDecision {
     /// No recording is in scope for auto-stop — safe to clear any stale
     /// `active_call` state and emit the "cleared" log.
     ClearIfStale,
+}
+
+/// What one detector poll does while Minutes itself may be holding audio.
+#[derive(Debug, PartialEq, Eq)]
+enum MinutesAudioPollPolicy {
+    /// Run normal detection, clearing and reminders.
+    Detect,
+    /// A recording owns the session: skip detection for this poll.
+    SkipForRecording,
+    /// Live transcript or dictation is holding the mic and per-process input
+    /// attribution is unavailable, so a hit could be Minutes' own audio. Skip
+    /// new detections but keep any call that was already detected: Live and
+    /// dictation capture only the microphone, so the user still needs the
+    /// call banner to record the other side (#1110).
+    SkipKeepingActiveCall,
+}
+
+fn decide_minutes_audio_poll_policy(
+    is_recording: bool,
+    minutes_audio_active: bool,
+    started_by_call_detect: bool,
+    stop_when_call_ends: bool,
+    input_attribution_available: bool,
+) -> MinutesAudioPollPolicy {
+    if is_recording {
+        if started_by_call_detect && stop_when_call_ends {
+            return MinutesAudioPollPolicy::Detect;
+        }
+        return MinutesAudioPollPolicy::SkipForRecording;
+    }
+    if minutes_audio_active && !input_attribution_available {
+        return MinutesAudioPollPolicy::SkipKeepingActiveCall;
+    }
+    // With per-process attribution, browser and native hits require the call
+    // app's own process family to hold input (#244, 1052ed06), so Minutes'
+    // own Live or dictation stream cannot fabricate a call.
+    MinutesAudioPollPolicy::Detect
 }
 
 fn decide_no_call_action(
@@ -368,7 +408,17 @@ impl CallDetector {
             recent_google_meet_until: Mutex::new(None),
             recent_teams_web_until: Mutex::new(None),
             last_mic_live: Mutex::new(None),
+            self_audio_skip_logged: AtomicBool::new(false),
         }
+    }
+
+    /// Returns whether this stretch of self-audio skips was already logged.
+    fn note_self_audio_skip(&self) -> bool {
+        self.self_audio_skip_logged.swap(true, Ordering::Relaxed)
+    }
+
+    fn reset_self_audio_skip(&self) {
+        self.self_audio_skip_logged.store(false, Ordering::Relaxed);
     }
 
     fn current_config(&self) -> CallDetectionConfig {
@@ -442,28 +492,46 @@ impl CallDetector {
                     .recording_started_by_call_detect
                     .load(Ordering::Relaxed);
 
-                // Default behavior preserved: when something else is recording
-                // (manual `minutes record`, hotkey, dictation, live transcript), skip
-                // detection entirely. Only observe calls when the detector's own banner
-                // launched this recording AND the user opted into auto-stop.
-                if (is_recording || minutes_audio_active)
-                    && !(started_by_call_detect && config.stop_when_call_ends)
-                {
-                    if minutes_audio_active {
-                        if let Some(previous) = self.clear_active_call() {
+                // When a recording owns the session (manual `minutes record`,
+                // hotkey), skip detection. Only observe calls when the
+                // detector's own banner launched this recording AND the user
+                // opted into auto-stop.
+                //
+                // Live transcript and dictation are different: they capture
+                // only the microphone. Clearing an already-detected call when
+                // they start (as 1a3c3d1e did) hid the only path that records
+                // the other side (#1110). Keep detecting when input attribution
+                // can rule out Minutes' own audio, and never drop a call that
+                // was detected before the session started.
+                let input_attribution_available =
+                    minutes_audio_active && !is_recording && active_input_process_pids().is_some();
+                match decide_minutes_audio_poll_policy(
+                    is_recording,
+                    minutes_audio_active,
+                    started_by_call_detect,
+                    config.stop_when_call_ends,
+                    input_attribution_available,
+                ) {
+                    MinutesAudioPollPolicy::Detect => {}
+                    MinutesAudioPollPolicy::SkipForRecording => continue,
+                    MinutesAudioPollPolicy::SkipKeepingActiveCall => {
+                        if !self.note_self_audio_skip() {
                             log_call_detect_event(
                                 "info",
-                                "cleared",
+                                "minutes_audio_skip",
                                 None,
-                                Some(&previous),
+                                self.active_call_snapshot()
+                                    .as_ref()
+                                    .map(|(process, _, _)| process.as_str()),
                                 serde_json::json!({
-                                    "reason": "minutes audio session active"
+                                    "reason": "minutes audio active without input attribution; keeping any detected call",
                                 }),
                             );
                         }
+                        continue;
                     }
-                    continue;
                 }
+                self.reset_self_audio_skip();
 
                 match self.detect_active_call(&config) {
                     DetectActiveCallResult::Detected {
@@ -642,6 +710,11 @@ impl CallDetector {
                                             "reason": "no active call detected on current poll"
                                         }),
                                     );
+                                    // The banner is only hidden by user action or
+                                    // `call:ended`; without this a call that ended
+                                    // outside a recording left it (and Go Live's
+                                    // call routing) pointing at a stale call.
+                                    app.emit("call:cleared", ()).ok();
                                 }
                             }
                         }
@@ -2648,6 +2721,59 @@ mod tests {
             ),
             NoCallDecision::ClearIfStale
         );
+    }
+
+    #[test]
+    fn live_session_keeps_detecting_calls_when_input_is_attributed() {
+        // #1110: a Meet call was detected, then Go Live started. The detector
+        // must keep observing the call instead of clearing it, because Live
+        // captures only the microphone.
+        assert_eq!(
+            decide_minutes_audio_poll_policy(false, true, false, true, true),
+            MinutesAudioPollPolicy::Detect
+        );
+    }
+
+    #[test]
+    fn live_session_without_attribution_skips_new_hits_but_keeps_the_call() {
+        assert_eq!(
+            decide_minutes_audio_poll_policy(false, true, false, true, false),
+            MinutesAudioPollPolicy::SkipKeepingActiveCall
+        );
+    }
+
+    #[test]
+    fn recordings_keep_their_existing_poll_policy() {
+        assert_eq!(
+            decide_minutes_audio_poll_policy(true, false, false, true, true),
+            MinutesAudioPollPolicy::SkipForRecording
+        );
+        assert_eq!(
+            decide_minutes_audio_poll_policy(true, true, false, false, false),
+            MinutesAudioPollPolicy::SkipForRecording
+        );
+        assert_eq!(
+            decide_minutes_audio_poll_policy(true, false, true, true, false),
+            MinutesAudioPollPolicy::Detect
+        );
+        assert_eq!(
+            decide_minutes_audio_poll_policy(false, false, false, false, false),
+            MinutesAudioPollPolicy::Detect
+        );
+    }
+
+    #[test]
+    fn self_audio_skip_logs_once_per_stretch() {
+        let detector = CallDetector::new(test_call_detection_config(vec!["google-meet".into()]));
+        detector.note_active_call("google-meet", "Google Meet");
+
+        assert!(!detector.note_self_audio_skip());
+        assert!(detector.note_self_audio_skip());
+        // Skipping never touches the detected call.
+        assert!(detector.active_call_snapshot().is_some());
+
+        detector.reset_self_audio_skip();
+        assert!(!detector.note_self_audio_skip());
     }
 
     #[test]
