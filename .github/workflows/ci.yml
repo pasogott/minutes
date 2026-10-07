@@ -85,6 +85,8 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
+              # The Windows desktop installer job installs the Tauri CLI with this.
+              - '.github/scripts/install-tauri-cli.sh'
               # Workspace lint policy (disallowed-methods). `cargo clippy --all
               # -- -D warnings` runs only inside the filtered test job, so
               # without this a PR editing lint policy skipped every Rust job and
@@ -503,7 +505,8 @@ jobs:
           key: ${{ runner.os }}-${{ steps.runner-image.outputs.scope }}-ort-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "2.10.1" --locked
+        shell: bash
+        run: .github/scripts/install-tauri-cli.sh 2.10.1
 
       - name: Configure portable Windows CPU baseline
         shell: bash
