@@ -1,12 +1,14 @@
 import { CopyButton } from "@/components/copy-button";
 import { DemoPlayer } from "@/components/demo-player";
 import { MemoryCompoundsHero } from "@/components/memory-compounds-hero";
-import { APPLE_SILICON_DOWNLOAD_PATH } from "@/lib/downloads";
+import {
+  APPLE_SILICON_DOWNLOAD_PATH,
+  WINDOWS_INSTALLER_DOWNLOAD_URL,
+} from "@/lib/downloads";
 import {
   MINUTES_MCP_TOOL_COUNT,
   MINUTES_RELEASE_VERSION,
   MINUTES_TEST_COUNT,
-  WINDOWS_SETUP_EXE,
 } from "@/lib/release";
 import { organizationSchema, softwareApplicationSchema } from "@/lib/schema";
 import { NumberedSectionLabel as SectionLabel } from "@/components/section-label";
@@ -409,7 +411,7 @@ export default function Home() {
             Mac (Apple Silicon)
           </a>
           <a
-            href={WINDOWS_SETUP_EXE}
+            href={WINDOWS_INSTALLER_DOWNLOAD_URL}
             data-download-target="windows"
             className="inline-flex items-center gap-2 rounded-[5px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--text)] shadow-[var(--shadow-panel)] hover:border-[color:var(--border-mid)] hover:bg-[var(--bg-hover)]"
           >
