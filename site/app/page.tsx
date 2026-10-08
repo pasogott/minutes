@@ -376,7 +376,7 @@ export default function Home() {
 
         <p className="mx-auto mt-12 max-w-[620px] rounded-[5px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-[12px] leading-5 text-[var(--text-secondary)]">
           <span className="text-[var(--accent)]">v{MINUTES_RELEASE_VERSION}</span>{" "}
-          fixes a QMD compatibility issue that could block connected assistants from searching local meeting memory.{" "}
+          makes Live capture both sides of a call, including the other person on headphones, and switches a running Live session automatically when a call starts.{" "}
           <a
             href={`https://github.com/silverstein/minutes/releases/tag/v${MINUTES_RELEASE_VERSION}`}
             className="text-[var(--text)] underline decoration-[color:var(--border-mid)] underline-offset-2 hover:text-[var(--accent)]"

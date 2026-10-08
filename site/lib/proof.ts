@@ -4,7 +4,7 @@
 // Contributors excludes anonymous entries and dependency automation.
 // GitHub refreshed: 2026-10-07. npm verified: 2026-10-07, covering 2026-09-05 through 2026-10-04.
 
-export const GITHUB_STARS = "1,538";
+export const GITHUB_STARS = "1,539";
 export const GITHUB_FORKS = "168";
 export const GITHUB_CONTRIBUTORS = "34";
 export const NPM_MONTHLY_DOWNLOADS = "2,556";
