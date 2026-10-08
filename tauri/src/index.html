@@ -1345,6 +1345,21 @@
       border-bottom: 1px solid var(--green-border);
     }
 
+    .live-call-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--text, inherit);
+      background: var(--orange-tint);
+      border: 1px solid var(--orange-border);
+    }
+    .live-call-warning[hidden], .live-call-warning [hidden] { display: none !important; }
+    .live-call-warning span { flex: 1; }
     .live-bar.active {
       display: block;
     }
@@ -5875,6 +5890,10 @@
         <div class="live-level-fill" id="live-level-fill"></div>
       </div>
       <div class="live-utterances" id="live-utterances">Listening…</div>
+      <div class="live-call-warning" id="live-call-warning" role="alert" hidden>
+        <span id="live-call-warning-text">Live hears only your microphone. The other side of this call is not being captured.</span>
+        <button class="btn btn-primary btn-sm" id="btn-live-switch-call" type="button" hidden>Try again</button>
+      </div>
       <div class="live-actions">
         <button class="btn btn-secondary btn-sm coach-toggle" id="btn-coach-live" type="button" aria-pressed="false">Coach</button>
         <button class="btn btn-secondary btn-sm" id="btn-stop-live">Stop Live</button>
@@ -10392,6 +10411,15 @@ Mat" required maxlength="8192"></textarea></label><div class="dictation-form-act
       // the control used to sit untouched through it -- so the honest reading of
       // "I clicked Live and nothing happened" is that, for three seconds,
       // nothing had.
+      // #1110: standalone Live hears one microphone only. On a call through
+      // headphones that misses the other side entirely, so whenever native
+      // call capture is usable Go Live records the microphone and this Mac's
+      // audio instead, with the live transcript on. No call detection needed:
+      // a call the detector does not know about is still captured.
+      if (await liveCanCaptureBothSides()) {
+        await startBothSidesCapture(activeCallSession?.app_name || null);
+        return;
+      }
       beginLiveTransition(btn, 'Starting...', 60000, true, 'Live');
 
       // First-use explainer (shown once, stored in localStorage)
@@ -10403,7 +10431,7 @@ Mat" required maxlength="8192"></textarea></label><div class="dictation-form-act
         const notice = document.getElementById('output-notice');
         if (noticeIcon) noticeIcon.textContent = '\u{1F399}';
         if (noticeTitle) noticeTitle.textContent = 'Live Transcript';
-        if (noticeDetail) noticeDetail.textContent = 'Transcribes your meeting in real time. Ask your agent in Recall for coaching during the call.';
+        if (noticeDetail) noticeDetail.textContent = 'Transcribes your meeting in real time, including the other side of a call. Ask your agent in Recall for coaching during the call.';
         if (notice) notice.classList.add('active');
         // Auto-dismiss after 4 seconds, then proceed with start
         await new Promise(r => setTimeout(r, 3000));
@@ -15728,6 +15756,111 @@ Mat" required maxlength="8192"></textarea></label><div class="dictation-form-act
       node.classList.toggle('live', !!live);
     }
 
+    const liveCallWarning = document.getElementById('live-call-warning');
+    const liveCallWarningText = document.getElementById('live-call-warning-text');
+
+    const liveCallWarningButton = document.getElementById('btn-live-switch-call');
+    let liveCapturePlanReason = null;
+    let bothSidesSwitchInFlight = false;
+
+    function showLiveCallWarning(appName, { reason = null, allowRetry = false } = {}) {
+      if (!liveCallWarning) return;
+      const base = `Live hears only your microphone. The other side of this ${appName || 'call'} is not being captured.`;
+      liveCallWarningText.textContent = reason ? `${base} ${reason}` : base;
+      if (liveCallWarningButton) liveCallWarningButton.hidden = !allowRetry;
+      liveCallWarning.hidden = false;
+    }
+
+    function hideLiveCallWarning() {
+      if (liveCallWarning) liveCallWarning.hidden = true;
+    }
+
+    async function liveCanCaptureBothSides() {
+      try {
+        const plan = await invoke('cmd_live_capture_plan');
+        liveCapturePlanReason = plan?.reason || null;
+        return !!plan?.bothSides;
+      } catch (_) {
+        liveCapturePlanReason = null;
+        return false;
+      }
+    }
+
+    // A stopped Live session reports inactive before it finishes saving and
+    // releases capture ownership; starting the recording in that window fails
+    // with "already recording". Wait for both.
+    async function waitForLiveTranscriptToStop(timeoutMs = 120000) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        let liveActive = false;
+        let owner = null;
+        try {
+          const status = await invoke('cmd_live_transcript_status');
+          liveActive = !!(status && status.active);
+        } catch (_) { liveActive = false; }
+        try {
+          owner = await invoke('cmd_capture_owner_pid');
+        } catch (_) { owner = null; }
+        if (!liveActive && owner == null) return true;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      return false;
+    }
+
+    // Record the microphone and this Mac's audio (native call capture) with
+    // the live transcript on. Stops a running standalone Live session first
+    // because the two cannot share the microphone; that session is saved.
+    async function startBothSidesCapture(appName) {
+      const wasLive = isLiveTranscript;
+      hideLiveCallWarning();
+      try {
+        setFooterCaptureMode(true, 'starting');
+        startFastPoll();
+        if (isLiveTranscript) {
+          await invoke('cmd_stop_live_transcript');
+          const stopped = await waitForLiveTranscriptToStop();
+          if (!stopped) throw new Error('Live transcript did not stop in time.');
+        }
+        await startDesktopRecordingWithArgs(
+          appName ? { intent: 'call', source: 'call_detect' } : { intent: 'call', source: 'live' }
+        );
+        callBanner.classList.remove('active');
+        const noticeIcon = document.getElementById('output-notice-icon');
+        const noticeTitle = document.getElementById('output-notice-title');
+        const noticeDetail = document.getElementById('output-notice-detail');
+        const notice = document.getElementById('output-notice');
+        if (noticeIcon) noticeIcon.textContent = '\u{1F399}';
+        if (noticeTitle) noticeTitle.textContent = appName ? `Recording both sides of the ${appName} call` : 'Live, with both sides of any call';
+        if (noticeDetail) noticeDetail.textContent = 'Live transcript is on. Minutes is capturing your microphone and this Mac\u2019s audio, so the other side of a call is included.';
+        if (notice) notice.classList.add('active');
+      } catch (e) {
+        console.error('Both-sides capture:', e);
+        showRecordingStartError(e);
+        setFooterCaptureMode(false);
+        if (wasLive || isLiveTranscript) showLiveCallWarning(appName, { allowRetry: true });
+      }
+    }
+
+    // A call showed up while standalone Live was running (hotkey or CLI
+    // start, or Live began before the call): switch automatically.
+    async function switchLiveToBothSidesForCall(appName) {
+      if (bothSidesSwitchInFlight || !isLiveTranscript) return;
+      bothSidesSwitchInFlight = true;
+      try {
+        if (await liveCanCaptureBothSides()) {
+          await startBothSidesCapture(appName);
+        } else {
+          showLiveCallWarning(appName, { reason: liveCapturePlanReason });
+        }
+      } finally {
+        bothSidesSwitchInFlight = false;
+      }
+    }
+
+    liveCallWarningButton?.addEventListener('click', async () => {
+      await startBothSidesCapture(activeCallSession?.app_name || null);
+    });
+
     currentWindow.listen('call:detected', (event) => {
       const { app_name, is_reminder } = event.payload;
       activeCallSession = {
@@ -15735,6 +15868,7 @@ Mat" required maxlength="8192"></textarea></label><div class="dictation-form-act
         dismissed: false,
       };
       callTitle.textContent = `${app_name} call detected`;
+      if (isLiveTranscript) switchLiveToBothSidesForCall(app_name);
       callBanner.classList.add('active');
 
       // Only steal focus on first detection, not periodic reminders
@@ -15743,7 +15877,17 @@ Mat" required maxlength="8192"></textarea></label><div class="dictation-form-act
       }
     });
 
+    currentWindow.listen('call:cleared', () => {
+      activeCallSession = null;
+      callBanner.classList.remove('active');
+      hideLiveCallWarning();
+    });
+
     document.getElementById('btn-record-call').addEventListener('click', async () => {
+      if (isLiveTranscript) {
+        await startBothSidesCapture(activeCallSession?.app_name || null);
+        return;
+      }
       try {
         setFooterCaptureMode(true, 'starting');
         startFastPoll();
@@ -16809,6 +16953,7 @@ Mat" required maxlength="8192"></textarea></label><div class="dictation-form-act
     currentWindow.listen('live-transcript:started', () => {
       endLiveTransition();
       isLiveTranscript = true;
+      if (activeCallSession) switchLiveToBothSidesForCall(activeCallSession.app_name);
       liveBar.classList.add('active');
       setFooterCaptureMode(true, 'live');
       statusPill.className = 'status-pill live';
@@ -16820,6 +16965,7 @@ Mat" required maxlength="8192"></textarea></label><div class="dictation-form-act
     currentWindow.listen('live-transcript:stopped', (event) => {
       endLiveTransition();
       isLiveTranscript = false;
+      hideLiveCallWarning();
       liveBar.classList.remove('active');
       setFooterCaptureMode(false);
       const processing = !!event.payload?.processing;

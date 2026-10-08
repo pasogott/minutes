@@ -3249,6 +3249,8 @@ fn main() {
             commands::cmd_start_live_transcript,
             commands::cmd_stop_live_transcript,
             commands::cmd_live_transcript_status,
+            commands::cmd_live_capture_plan,
+            commands::cmd_capture_owner_pid,
             commands::cmd_start_copilot_surface,
             commands::cmd_stop_copilot_surface,
             commands::cmd_pause_copilot_surface,

@@ -18714,7 +18714,7 @@ fn cmd_live(config: &Config) -> Result<()> {
         minutes_core::live_partials::DEFAULT_PARTIAL_CHANNEL_CAPACITY,
         "standalone",
     );
-    let _capture_relay = match minutes_core::copilot::CaptureRelayServer::start(
+    let capture_relay = match minutes_core::copilot::CaptureRelayServer::start(
         minutes_core::copilot::CopilotEvidenceMode::CaptureRelayPartials,
         Some(partial_subscriber),
     ) {
@@ -18737,11 +18737,16 @@ fn cmd_live(config: &Config) -> Result<()> {
         }
     };
 
-    match minutes_core::live_transcript::run_with_partials(
+    // Hand capture ownership back as soon as listening stops, not after the
+    // meeting pipeline: a desktop recording started right after Live stops
+    // (Go Live switching to both-sides call capture) would otherwise be
+    // refused as "already owns capture" for the whole processing time (#1110).
+    match minutes_core::live_transcript::run_with_partials_releasing_capture(
         stop,
         config,
         live_context_session_id,
         Some(partial_publisher),
+        Box::new(move || drop(capture_relay)),
     ) {
         Ok((lines, duration, path)) => {
             eprintln!("\nLive transcript complete:");
